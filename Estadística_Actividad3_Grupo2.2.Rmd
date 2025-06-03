@@ -41,8 +41,8 @@ rownames(data) <- data$id
 # para el modelo de regresión logística que haremos posteriormente. Las observaciones con 
 # "extension == metastasico" se han clasificado como "metastasis == si", el resto como "no".
 
-data$metastasis <- ifelse (data$extension == "metastasico", "si", "no")
-data$metastasis <- as.factor(data$metastasis)
+data$extension <- ifelse (data$extension == "metastasico", "si", "no")
+data$extension <- as.factor(data$extension)
 str(data)
 ```
 ## PCA y tablas
