@@ -22,11 +22,12 @@ library(stats)
 library(ggplot2)
 library(openxlsx)
 library(tidyverse)
+library(factoextra)
 ```
 
 ## Archivos
 ```{r}
-data <- read.csv("Dataset expresión genes.csv", header = TRUE)
+data <- read.csv("C:/Users/edurn/OneDrive/Desktop/Estadistica_Act3/Dataset expresión genes.csv", header = TRUE)
 data <- data[, -1]
 
 any(is.na(data)) # No hay ningún dato missing.
@@ -41,8 +42,8 @@ rownames(data) <- data$id
 # para el modelo de regresión logística que haremos posteriormente. Las observaciones con 
 # "extension == metastasico" se han clasificado como "metastasis == si", el resto como "no".
 
-data$metastasico <- ifelse (data$extension == "metastasico", "si", "no")
-data$metastasico <- as.factor(data$metastasico)
+data$metastasis <- ifelse (data$extension == "metastasico", "si", "no")
+data$metastasis <- as.factor(data$metastasis)
 str(data)
 ```
 ## PCA y tablas
@@ -52,10 +53,99 @@ str(data)
 
 data_genes <- data %>%
   select(starts_with("AQ_"))
+
+# Miraremos cuantas variables tienen valores 0 en alguna de las observaciones
+data_genes_zeros <- colSums(data_genes == 0)
+# Todas las variables tienen al menos un valor 0, pero a excepción de ADIPOQ y NOX5 son pocos.
+# De todas maneras, no nos parecen suficientes como para eliminar ninguna variable.
+
+# Haremos un boxplot para ver la expresión de los distintos genes
+boxplot(data_genes)
+# Hay valores tan elevados que distorsionan los boxplots, escalaremos los datos para que sean más comparables.
+
+data_genes_scaled <- scale(data_genes)
+boxplot(data_genes_scaled)
+
+# Estos datos son los que usaremos para el PCA (podríamos escalarlos en la misma función de prcomp, pero
+# como ya tenemos el dataframe escalado, usaremos este)
+
+pca <- prcomp(data_genes_scaled)
+# Con esto obtenemos una tabla con los 46 principal components, y el peso que 
+# cada variable tiene en cada uno de estos PCs. Para poder sacar la varianza explicada
+# de cada componente (o dimensión) usaremos las funciones de la libreria factoextra.
+
+eigenvalues <- get_eigenvalue(pca)
+
+# Para obtener la proporción de la varianza total acumulada, deberíamos usar la última
+# columna de este nuevo dataframe.
+Tabla_PCA_componentes <- as.data.frame(eigenvalues[, "cumulative.variance.percent"])
+rownames(Tabla_PCA_componentes) <- rownames(eigenvalues) 
+names(Tabla_PCA_componentes)[1] <- "Varianza_acumulada"
+
+print(Tabla_PCA_componentes)
+
+# También se puede representar en un scree plot, aunque aquí representamos el 
+# porcentaje de la variación explicada de cada componente/dimension (sin acumular)
+fviz_eig(pca, addlabels = TRUE)
+
+# Como podemos observar, si quisieramos escoger aquellos componentes o dimensiones 
+# que juntos expliquen al menos un 70% de la varianza acumulada, deberíamos escoger hasta la Dim.5.
+
+# Para hacer una tabla que nos muestre las cargas de cada variable en estas 5 dimensiones
+# o componentes, podemos usar el componente "rotation" de la lista "pca". Cambiaremos
+# los nombres de las filas para que coincidan con la Tabla_PCA_Componentes
+
+Tabla_PCA_cargas <- as.data.frame(pca$rotation[, c("PC1", "PC2", "PC3", "PC4", "PC5")])
+colnames(Tabla_PCA_cargas) <- c("Dim.1", "Dim.2", "Dim.3", "Dim.4", "Dim.5")
+print(Tabla_PCA_cargas)
 ```
 
 
 ## Gráficos descriptivos de los componentes principales
+```{r}
+# Aunque dijimos que necesitaríamos las primeras 5 dimensiones para tener un 70% 
+# de la varianza explicada acumulada, ahora usaremos las primeras 2 para hacer
+# los gráficos descriptivos por simplicidad.
+
+# Primero extraeremos el valor de las variables, que se usarán a posteriori.
+var <- get_pca_var(pca)
+
+# Ahora haremos un gráfico de correlación variable para ver la relación entre
+# todas las variables en las dimensiones 1 y 2. Además, aprovecharemos para colorear
+# las variables según su valor de cos2, lo que nos indicará la importancia de cada variable.
+
+correlacion_variable_graph <- fviz_pca_var(pca, col.var = "cos2", 
+             gradient.cols = c("blue", "yellow", "red"),
+             repel = TRUE)
+
+correlacion_variable_graph + 
+  ggtitle("Gráfico de correlación variable del PCA") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+# Tenemos tantas variables que el gráfico es un poco confuso, pero podemos ver
+# que la mayoría de variables se van hacia la izquierda. Es decir, se relacionan
+# negativamente con la Dim.1 (eje X). Esto lo podemos corroborar en la tabla de cargas,
+# donde vemos que la mayoria son negativas en Dim.1.
+# Además, segun los colores, podemos decir que tanto ADIPOQ como NOX5 (en azul)
+# parecen ser poco importantes en estas dimensiones, mientras que JAK1 (en rojo) 
+# lo es mucho.
+
+# La importancia de las variables para estas dimensiones también la podemos 
+# representar en un gráfico de barras representando el valor de cos2
+
+variable_cos2_graph <- fviz_cos2(pca, choice = "var", axes = 1:2)
+variable_cos2_graph + 
+  ggtitle("Importancia de las variables en Dim.1-2 (según Cos2)") +
+  theme(plot.title = element_text(hjust = 0.5),
+        axis.text.x = element_text(size = 8))
+
+# Como intuíamos en la anterior gráfica, JAK1 es la variable más importante.
+
+# Si ahora lo que queremos ver es la importancia de cada variable, pero por
+# dimensión individual, podemos hacer otro gráfico:
+
+
+```
 
 
 ## Tabla descriptiva de los componentes principales
