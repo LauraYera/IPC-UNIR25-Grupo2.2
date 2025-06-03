@@ -1,0 +1,64 @@
+---
+title: "Resolución Actividad 3 máster Bioinformática UNIR (2025)"
+author: "Edurne García Vidal, Laura Yera Fernández, Sergio Gil Peña, Ander López Imas,Eva Coll Ripoll"
+date: "2025-06-03"
+output: 
+  html_document:
+    theme:
+      bootswatch: flatly
+    toc: TRUE
+    toc_depth: 3
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+# Estadística y R para Ciencias de la Salud: Actividad 3
+
+## Librerias
+```{r}
+rm(list=ls())
+library(stats)
+library(ggplot2)
+library(openxlsx)
+library(tidyverse)
+```
+
+## Archivos
+```{r}
+data <- read.csv("Dataset expresión genes.csv", header = TRUE)
+data <- data[, -1]
+
+any(is.na(data)) # No hay ningún dato missing.
+
+# Como el ID de los pacientes no corresponde al número de fila, vamos a añadir "ID_"
+# a esa variable y usarla de rownames.
+data$id <- paste0("ID_", data$id)
+rownames(data) <- data$id
+
+# Además, vamos a transformar la columna "extension (localizado / metastásico / regional)" 
+# a una variable binaria "metastasis (si / no)" porque es la variable resultado que nos piden
+# para el modelo de regresión logística que haremos posteriormente. Las observaciones con 
+# "extension == metastasico" se han clasificado como "metastasis == si", el resto como "no".
+
+data$metastasis <- ifelse (data$extension == "metastasico", "si", "no")
+data$metastasis <- as.factor(data$metastasis)
+str(data)
+```
+## PCA y tablas
+```{r}
+# Realizaremos el PCA de los datos de expresión génica. Por ello, haremos una tabla
+# incluyendo sólo esas variables (son las que empiezan por "AQ_").
+
+data_genes <- data %>%
+  select(starts_with("AQ_"))
+```
+
+
+## Gráficos descriptivos de los componentes principales
+
+
+## Tabla descriptiva de los componentes principales
+
+
+## Modelo de regresión logística
