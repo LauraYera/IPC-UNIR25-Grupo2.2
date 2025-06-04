@@ -27,7 +27,7 @@ library(factoextra)
 
 ## Archivos
 ```{r}
-data <- read.csv("C:/Users/edurn/OneDrive/Desktop/Estadistica_Act3/Dataset expresión genes.csv", header = TRUE)
+data <- read.csv("G:/PERSONAL/Edurne/MasterBioInformatica_UNIR/Asignaturas/1rSemestre_EstadisticayRparaCienciasdelaSalud/Actividad3/Dataset expresión genes.csv", header = TRUE)
 data <- data[, -1]
 
 any(is.na(data)) # No hay ningún dato missing.
@@ -81,8 +81,10 @@ eigenvalues <- get_eigenvalue(pca)
 Tabla_PCA_componentes <- as.data.frame(eigenvalues[, "cumulative.variance.percent"])
 rownames(Tabla_PCA_componentes) <- rownames(eigenvalues) 
 names(Tabla_PCA_componentes)[1] <- "Varianza_acumulada"
+Tabla_PCA_componentes$Varianza_acumulada <- round(Tabla_PCA_componentes$Varianza_acumulada, 1)
 
 print(Tabla_PCA_componentes)
+write.xlsx(Tabla_PCA_componentes, file = "Tabla_PCA_Componentes.xlsx", rowNames = TRUE)
 
 # También se puede representar en un scree plot, aunque aquí representamos el 
 # porcentaje de la variación explicada de cada componente/dimension (sin acumular)
@@ -97,11 +99,16 @@ fviz_eig(pca, addlabels = TRUE)
 
 Tabla_PCA_cargas <- as.data.frame(pca$rotation[, c("PC1", "PC2", "PC3", "PC4", "PC5")])
 colnames(Tabla_PCA_cargas) <- c("Dim.1", "Dim.2", "Dim.3", "Dim.4", "Dim.5")
+Tabla_PCA_cargas <- Tabla_PCA_cargas %>%
+  mutate(across(where(is.numeric), ~ round(., 2)))
 print(Tabla_PCA_cargas)
+write.xlsx(Tabla_PCA_cargas, file = "Tabla_PCA_cargas.xlsx", rowNames = TRUE)
 ```
 
 
 ## Gráficos descriptivos de los componentes principales
+
+### Gráficos para las variables
 ```{r}
 # Aunque dijimos que necesitaríamos las primeras 5 dimensiones para tener un 70% 
 # de la varianza explicada acumulada, ahora usaremos las primeras 2 para hacer
@@ -142,11 +149,99 @@ variable_cos2_graph +
 # Como intuíamos en la anterior gráfica, JAK1 es la variable más importante.
 
 # Si ahora lo que queremos ver es la importancia de cada variable, pero por
-# dimensión individual, podemos hacer otro gráfico:
+# dimensión individual en vez de las dos primeras juntas, podemos hacer otro gráfico:
 
+# Para la dimension 1
+contribucion_dim1 <- fviz_contrib(pca, choice = "var", axes = 1)
+contribucion_dim1 + 
+  ggtitle("Importancia de las variables en la Dim.1") +
+  theme(plot.title = element_text(hjust = 0.5),
+        axis.text.x = element_text(size = 8))
+
+# Para la dimension 2
+contribucion_dim2 <- fviz_contrib(pca, choice = "var", axes = 2)
+contribucion_dim2 + 
+  ggtitle("Importancia de las variables en la Dim.2") +
+  theme(plot.title = element_text(hjust = 0.5),
+        axis.text.x = element_text(size = 8))
+
+
+# Con esto podemos ver que, por ejemplo, JAK1 que la más importante en los gráficos
+# anteriores, realmente es importante en la dimensión 1. No obstante, como la Dim.1
+# ya contribuye a más del 50% de la varianza explicada, es normal que algo importante
+# en esta dimensión lo siga siendo aunque tengamos en cuenta también la Dim.2.
+
+# Lo que también observamos es que en la Dim.1 hay muchas variables que contribuyen de forma similar,
+# mientras que en la Dim.2 el % de contribución de las variables baja rápidamente tras las primeras 6.
+```
+
+### Gráficos para las observaciones
+```{r}
+# Hasta ahora hemos estado viendo el impacto de las variables (genes) en los componentes
+# del PCA, pero también podemos hacer gráficos similares para ver el impacto de las 
+# observaciones (pacientes).
+
+correlacion_individuals_graph <- fviz_pca_ind(pca, col.ind = "cos2",
+             gradient.cols = c("blue", "yellow", "red"),
+             repel = TRUE)
+correlacion_individuals_graph + 
+  ggtitle("Gráfico de correlación de los individuos del PCA") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+# En este gráfico vemos que los individuos están bastante repartidos, aunque sobre
+# todo a lo largo del eje X (tiene sentido, ya que se trata de la Dim.1, que contribuye
+# mucho más a la varianza explicada que la Dim.2). En cuanto a los colores, vemos que los
+# valores más azules son los que están más cerca del origen, lo cual también tiene sentido
+# porque significa que estas 2 dimensiones no tienen efecto en ellos. En cambio, si que vemos
+# un grupo rojo a la derecha, en el que la dimension 1 afecta positivamente en ellos. Tal vez
+# tendrán valores bajos de JAK1 (ya que la variable está negativamente relacionada con al Dim.1)
+# y otras variables importantes para esa dimensión.
 
 ```
 
+
+### Gráficos conjuntos variables - observaciones
+```{r}
+# Por último, también podemos hacer un biplot, que sería una combinación entre el gráfico
+# de correlación de variables y el de individuos.
+
+
+biplot_graph_dim1.2 <- fviz_pca_biplot(pca, 
+                                col.ind = "blue",
+                                col.var = "darkgreen",
+                                axes = c(1, 2), 
+                                repel = TRUE)
+biplot_graph_dim1.2 + 
+  ggtitle("Gráfico biplot del PCA (Dimensiones 1 y 2)") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+# También podemos mirarlo para otras dimensiones
+biplot_graph_dim1.3 <- fviz_pca_biplot(pca, 
+                                col.ind = "blue",
+                                col.var = "darkgreen",
+                                axes = c(1, 3), 
+                                repel = TRUE)
+biplot_graph_dim1.3 + 
+  ggtitle("Gráfico biplot del PCA (Dimensiones 1 y 3)") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+biplot_graph_dim2.3 <- fviz_pca_biplot(pca, 
+                                col.ind = "blue",
+                                col.var = "darkgreen",
+                                axes = c(2, 3), 
+                                repel = TRUE)
+biplot_graph_dim2.3 + 
+  ggtitle("Gráfico biplot del PCA (Dimensiones 2 y 3)") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+# En el plot de las Dim2. y Dim.3 vemos que hay muchos individuos cerca o en el 
+# origen, porque ambas dimensiones contribuyen poco (5-6%) a la varianza. No obstante,
+# seguimos viendo individuos alejados en los cuatro cuadrantes del gráfico, lo que
+# significa que estas dimensiones siguen siendo importantes para separarlos.
+# Aunque cueste ver, en este último gráfico también vemos variables (flechas) que
+# apuntan en diferentes direcciones, no son casi todas negativas como ocurría en Dim.1,
+# lo que también concuerda con los signos de las cargas de cada dimensión.
+```
 
 ## Tabla descriptiva de los componentes principales
 
