@@ -375,3 +375,24 @@ tabla_genes_completa
 
 
 ## Modelo de regresión logística
+```{r}
+# Para la regresión logística usaremos de predictores los terciles de PC1 y PC2,
+# que ya recogen información de la expresión de los 46 genes, por lo que crearemos
+# una tabla que incluya las ID de los pacientes, los terciles, el resto de variables
+# no-génicas y la variable respuesta metástasis (si / no)
+
+data_regression <- data %>%
+  select(-starts_with("AQ_")) %>%
+  rename(paciente = id) %>%
+  left_join(terciles, by = "paciente")
+
+# Ahora vamos a asegurarnos que todas aquellas variables que no son numéricas se
+# se pasen a factor (menos la variable paciente)
+
+data_regression_factors <- data_regression %>%
+  mutate(
+    across(.cols = where(is.character) & !all_of("paciente"), as.factor)
+  )
+str(data_regression_factors)
+```
+
