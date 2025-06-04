@@ -23,6 +23,7 @@ library(ggplot2)
 library(openxlsx)
 library(tidyverse)
 library(factoextra)
+library(gtsummary)
 ```
 
 ## Archivos
@@ -244,6 +245,133 @@ biplot_graph_dim2.3 +
 ```
 
 ## Tabla descriptiva de los componentes principales
+```{r}
+# Antes de nada, para saber si para las estadísticas descriptivas necesitamos usar
+# media y desviación estándard o mediana y rango intercuartílico, vamos a ver la
+# distribución que presenta cada variable de nuestra tabla de genes.
+
+# Con apply haremos el test de shapiro por cada columna (gen) y sacaremos el p-valor.
+# Importante, lo haremos en los datos SIN escalar.
+data_genes_shapiro <- apply(data_genes, 2, function(x) shapiro.test(x)$p.value)
+# Miraremos cuantos genes tienen un p-value< 0.05 (no tienen una distribución normal)
+table(data_genes_shapiro < 0.05)
+
+# Nos sale que 46 genes (de los 46 totales) tienen p<0.05. Es decir, sus distribuciones
+# no son normales. Por lo tanto, usaremos mediana y rango intercuartílico para las
+# estadísticas descriptivas.
+
+
+# Lo siguiente que vamos a hacer es dividir nuestra muestra, por cada componente
+# o dimension, en terciles. Para eso, primero debemos sacar el valor de cada componente
+# para cada paciente con el pca$x. Nos centraremos en los dos primeros componentes.
+
+pca_values <- as.data.frame(pca$x)
+pca_values <- pca_values[, c("PC1", "PC2")]
+
+PC1_tercil <- quantile(pca_values$PC1, c(1/3, 2/3))
+PC2_tercil <- quantile(pca_values$PC2, c(1/3, 2/3))
+
+
+# Y ahora clasificaremos a los pacientes dependiendo de a qué tercil corresponden 
+# en PC1 y PC2.
+pca_values$PC1_tercil <- cut(pca_values$PC1,
+                             breaks = c(-Inf, PC1_tercil, Inf),
+                             labels = c("T1", "T2", "T3"),
+                             right = FALSE)
+pca_values$PC1_tercil <- factor(pca_values$PC1_tercil, levels = c("T1", "T2", "T3"))
+
+pca_values$PC2_tercil <- cut(pca_values$PC2,
+                             breaks = c(-Inf, PC2_tercil, Inf),
+                             labels = c("T1", "T2", "T3"),
+                             right = FALSE)
+pca_values$PC2_tercil <- factor(pca_values$PC2_tercil, levels = c("T1", "T2", "T3"))
+
+terciles <- data.frame(
+  paciente = rownames(pca_values),
+  PC1_tercil = pca_values$PC1_tercil,
+  PC2_tercil = pca_values$PC2_tercil)
+
+
+# Ahora con gtsummary haremos una tabla con las estadísticas descriptivas de cada
+# gen en función de los pacientes incluidos en cada tercil de los componentes 1 y
+# 2 del PCA.
+# Además, para ver si hay diferencias entre los terciles de cada componente, realizaremos
+# un test Kruskal-Wallis (ya que los datos no siguen distribución normal).
+
+# Para poder poner ambos PCs en la misma tabla, primero deberíamos pasar nuestro
+# dataframe a formato largo duplicando los datos. Después duplicaremos la tabla
+# y añadiremos dos columnas a cada una: una columna especificará el PC y la otra
+# el tercil al que cada paciente corresponde en ese PC. Por último, fusionaremos
+# ambas tablas y las usaremos para el gtsummary.
+
+data_genes_longer<- data_genes %>%
+  mutate(paciente = rownames(data_genes))
+
+data_genes_longer <- pivot_longer(data_genes_longer,
+                                  cols = -paciente,
+                                  names_to = "gen",
+                                  values_to = "expresion")
+
+data_genes_longer <- data_genes_longer %>%
+  left_join(terciles, by = "paciente")
+
+data_genes_longer_PC1 <- data_genes_longer %>%
+  select(-PC2_tercil) %>%
+  mutate(componente = "PC1") %>%
+  rename(Tercil = PC1_tercil)
+
+data_genes_longer_PC2 <- data_genes_longer %>%
+  select(-PC1_tercil) %>%
+  mutate(componente = "PC2") %>%
+  rename(Tercil = PC2_tercil)
+
+# Ahora fusionaremos las dos tablas
+data_genes_longer_complete <- bind_rows(data_genes_longer_PC1, data_genes_longer_PC2)
+data_genes_longer_complete$componente <- factor(data_genes_longer_complete$componente, 
+                                                levels = c("PC1", "PC2"))
+str(data_genes_longer_complete)
+
+# Ahora procedemos con la tabla usando gtsummary, estratificando por los componentes
+# y luego diviendo por los terciles de cada componente. El problema es que, al estar
+# trabajando con una tabla en formato largo, vamos a tener que hacer varios pasos previos
+# para hacer la tabla para cada gen (si lo dejaramos así, el resultado es una tabla con sólo
+# una fila "expresion").
+
+gene_list <- unique(data_genes_longer_complete$gen)
+
+# Haremos una función para que haga la tabla por cada gen
+# Hay que hacer un rename a "expresion" porque si no en la tabla final cada fila
+# se nombrará "expresion" en vez del gen al que hace referencia.
+
+tabla_por_gen <- function(nombre_gen) {
+  data_genes_longer_complete %>%
+    filter(gen == nombre_gen) %>%
+    rename(!!nombre_gen := expresion) %>%
+    tbl_strata(strata = componente,
+             .tbl_fun = ~.x %>%
+               tbl_summary(by = Tercil,
+                           include = all_of(nombre_gen),
+                           statistic = all_of(nombre_gen) ~ "{median} ({p25} - {p75})",
+                           digits = all_of(nombre_gen) ~ function(x) formatC(x, format = "e", digits = 1)) %>%
+               add_p(test = all_of(nombre_gen) ~ "kruskal.test",
+                     pvalue_fun = ~ style_pvalue(.x, digits = 3)) %>%
+               modify_header(label = nombre_gen))
+  }
+  
+# Aplicamos esto a cada gen de nuestra lista gene_list
+lista_tablas_genes <- lapply(gene_list, function(x) {
+  tabla_por_gen(x)
+})
+
+# Ahora apiliamos las tablas con una funcion de gtsummary y cambiamos el nombre
+# del titulo de las filas
+tabla_genes_completa <- tbl_stack(lista_tablas_genes)
+tabla_genes_completa <- tabla_genes_completa %>%
+  modify_header(label = "**Gen**")
+
+tabla_genes_completa
+```
+
 
 
 ## Modelo de regresión logística
