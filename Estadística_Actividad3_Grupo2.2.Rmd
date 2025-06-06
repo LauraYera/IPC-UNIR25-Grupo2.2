@@ -24,6 +24,8 @@ library(openxlsx)
 library(tidyverse)
 library(factoextra)
 library(gtsummary)
+library(car)
+library(glmnet)
 ```
 
 ## Archivos
@@ -393,6 +395,172 @@ data_regression_factors <- data_regression %>%
   mutate(
     across(.cols = where(is.character) & !all_of("paciente"), as.factor)
   )
-str(data_regression_factors)
+
+# Nuestras variables predictoras serán los terciles de PC1 y PC2, pero debemos
+# buscar variables confusoras que también deberían incluirse en el modelo de regresión.
+# Las variables confusoras son aquellas que pueden estar asociadas a la variable 
+# dependiente (metastasis) o a las predictoras (los terciles de PC1 y PC2),
+# por lo que vamos a usar tests estadísticos para ver esas asociaciones.
+# Quitaremos la variable extension porque es de donde se ha sacado metastasis (al inicio 
+# del documento)
+
+variables_factor <- data_regression_factors %>%
+  select(-paciente, -metastasis, -PC1_tercil, -PC2_tercil, -extension) %>%
+  select(where(is.factor))
+
+# La primera vez que hicimos los tests, saltaron algunos avisos por que en algunas de
+# las comparaciones el test de Chi cuadrado no es el mejor. En esos casos, debería hacerse
+# un test de Fisher, así que hemos modificado el código para incluir esa opción con tryCatch.
+
+chi_resultados <- lapply(names(variables_factor), function(x) {
+  test <- tryCatch(
+    chisq.test(data_regression_factors$metastasis, data_regression_factors[[x]]),
+    warning = function(w) {
+      fisher.test(data_regression_factors$metastasis, data_regression_factors[[x]])
+    })
+  data.frame(variable = x, p_value = test$p.value)
+})
+
+chi_resultados_df <- do.call(rbind, chi_resultados)
+# Como hemos hecho muchas comparaciones, haremos una correccion del p-valor
+chi_resultados_df$p_adjusted <- p.adjust(chi_resultados_df$p_value, method = "BH")
+table(chi_resultados_df$p_value < 0.05)
+table(chi_resultados_df$p_adjusted < 0.05)
+# Ninguna de las variables categoricas está asociada a metástasis.
+
+# Ahora haremos lo mismo pero para las variables no-categoricas. Como tenemos >30 observaciones
+# asumiremos normalidad y directamente haremos el test de levene.
+variables_numeric <- data_regression_factors %>%
+  select(-paciente, -metastasis, -PC1_tercil, -PC2_tercil, -extension) %>%
+  select(where(is.numeric))
+
+numeric_resultados <- lapply(names(variables_numeric), function(x) {
+  levene <- leveneTest(data_regression_factors[[x]] ~ data_regression_factors$metastasis)
+  levene_pval <- levene$"Pr(>F)"[1]
+  if (levene_pval > 0.05) {
+    test <- t.test(data_regression_factors[[x]] ~ data_regression_factors$metastasis, var.equal = TRUE)
+  } else {
+    test <- t.test(data_regression_factors[[x]] ~ data_regression_factors$metastasis, var.equal = FALSE)
+  }
+  data.frame(variable = x, p_value = test$p.value)
+})
+
+numeric_resultados_df <- do.call(rbind, numeric_resultados)
+numeric_resultados_df$p_adjusted <- p.adjust(numeric_resultados_df$p_value, method = "BH")
+table(numeric_resultados_df$p_value < 0.05)
+table(numeric_resultados_df$p_adjusted < 0.05)
+# Ninguna de las variables numericas está asociada tampoco a metástasis.
+
+# Ahora vamos a repetir lo mismo pero en vez de comparando a metástasis, comparando a las
+# variables independientes (PC1_tercil y PC2_tercil)
+
+chi_resultados_PC1_tercil <- lapply(names(variables_factor), function(x) {
+  test <- tryCatch(
+    chisq.test(data_regression_factors$PC1_tercil, data_regression_factors[[x]]),
+    warning = function(w) {
+      fisher.test(data_regression_factors$PC1_tercil, data_regression_factors[[x]])
+    })
+  data.frame(variable = x, p_value = test$p.value)
+})
+
+chi_resultados_PC1_tercil_df <- do.call(rbind, chi_resultados_PC1_tercil)
+chi_resultados_PC1_tercil_df$p_adjusted <- p.adjust(chi_resultados_PC1_tercil_df$p_value, method = "BH")
+table(chi_resultados_PC1_tercil_df$p_value < 0.05)
+table(chi_resultados_PC1_tercil_df$p_adjusted < 0.05)
+chi_resultados_PC1_tercil_df$variable[chi_resultados_PC1_tercil_df$p_value < 0.05]
+# Aunque se pierda en el valor p ajustado, las variables vomitos y tumor están asociadas
+# a PC1_tercil.
+
+chi_resultados_PC2_tercil <- lapply(names(variables_factor), function(x) {
+  test <- tryCatch(
+    chisq.test(data_regression_factors$PC2_tercil, data_regression_factors[[x]]),
+    warning = function(w) {
+      fisher.test(data_regression_factors$PC2_tercil, data_regression_factors[[x]])
+    })
+  data.frame(variable = x, p_value = test$p.value)
+})
+
+chi_resultados_PC2_tercil_df <- do.call(rbind, chi_resultados_PC2_tercil)
+chi_resultados_PC2_tercil_df$p_adjusted <- p.adjust(chi_resultados_PC2_tercil_df$p_value, method = "BH")
+table(chi_resultados_PC2_tercil_df$p_value < 0.05)
+table(chi_resultados_PC2_tercil_df$p_adjusted < 0.05)
+chi_resultados_PC2_tercil_df$variable[chi_resultados_PC2_tercil_df$p_value < 0.05]
+# En este caso, las asociadas a PC2_tercil (aunque en el p-valor sin ajustar) son
+# las variables neuropatia y tumor.
+
+numeric_resultados_PC1_tercil <- lapply(names(variables_numeric), function(x) {
+  shapiro_pvals <- tapply(data_regression_factors[[x]], data_regression_factors$PC1_tercil, function(y) shapiro.test(y)$p.value)
+  if(all(shapiro_pvals > 0.05)) {
+    p_val <- summary(aov(data_regression_factors[[x]] ~ data_regression_factors$PC1_tercil))[[1]][["Pr(>F)"]][1]
+  } else {
+    p_val <- kruskal.test(data_regression_factors[[x]] ~ data_regression_factors$PC1_tercil)$p.value
+  }
+  data.frame(variable = x, p_value = p_val)
+})
+
+numeric_resultados_PC1_tercil_df <- do.call(rbind, numeric_resultados_PC1_tercil)
+numeric_resultados_PC1_tercil_df$p_adjusted <- p.adjust(numeric_resultados_PC1_tercil_df$p_value, method = "BH")
+table(numeric_resultados_PC1_tercil_df$p_value < 0.05)
+table(numeric_resultados_PC1_tercil_df$p_adjusted < 0.05)
+numeric_resultados_PC1_tercil_df$variable[numeric_resultados_PC1_tercil_df$p_value < 0.05]
+numeric_resultados_PC1_tercil_df$variable[numeric_resultados_PC1_tercil_df$p_adjusted < 0.05]
+# En este caso IgG y pcr presentan asociación a PC1_tercil por p-val, y linfocitos 
+# tanto por p-val como por la ajustada.
+
+numeric_resultados_PC2_tercil <- lapply(names(variables_numeric), function(x) {
+  shapiro_pvals <- tapply(data_regression_factors[[x]], data_regression_factors$PC2_tercil, function(y) shapiro.test(y)$p.value)
+  if(all(shapiro_pvals > 0.05)) {
+    p_val <- summary(aov(data_regression_factors[[x]] ~ data_regression_factors$PC2_tercil))[[1]][["Pr(>F)"]][1]
+  } else {
+    p_val <- kruskal.test(data_regression_factors[[x]] ~ data_regression_factors$PC2_tercil)$p.value
+  }
+  data.frame(variable = x, p_value = p_val)
+})
+
+numeric_resultados_PC2_tercil_df <- do.call(rbind, numeric_resultados_PC2_tercil)
+numeric_resultados_PC2_tercil_df$p_adjusted <- p.adjust(numeric_resultados_PC2_tercil_df$p_value, method = "BH")
+table(numeric_resultados_PC2_tercil_df$p_value < 0.05)
+table(numeric_resultados_PC2_tercil_df$p_adjusted < 0.05)
+numeric_resultados_PC2_tercil_df$variable[numeric_resultados_PC2_tercil_df$p_value < 0.05]
+# En este caso igE está asociada a PC2_tercil por el p-valor sin ajustar.
+
+
+# En resumen, variables interesantes (posibles confusoras) que podriamos tener en cuenta 
+# para el ajuste del modelo de regresión logística son:
+# vomitos, tumor, neuropatia, igG, pcr, linfocitos e igE.
+
+# Ahora probaremos diversos modelos de regresión incluyendo o no estas variables de ajuste.
+# Pero primero vamos a asegurarnos de los niveles de las variables dependientes e independientes,
+# para que la categoria de referencia sea la adecuada ("no" en metastasis).
+
+data_regression_factors$metastasis <- factor(data_regression_factors$metastasis, levels = c("no", "si"))
+
+modelo_sin_ajuste <- glm(metastasis ~ PC1_tercil + PC2_tercil, data = data_regression_factors, family = binomial)
+summary(modelo_sin_ajuste)
+modelo_sin_ajuste_OR <- exp(cbind(OR = coef(modelo_sin_ajuste), confint(modelo_sin_ajuste)))
+modelo_sin_ajuste_OR
+
+# En cuanto a los p-valores del modelo, ninguno es < 0.05, por lo que ninguna de las variables
+# parece tener un efecto en la variable dependiente. Cuando calculamos los OR, todos están cerca de 1,
+# y los intervalos de confianza incluyen el 1, así que no parece que estén asociados a ningun riesgo.
+
+modelo_todas_confusoras <- glm(metastasis ~ PC1_tercil + PC2_tercil + vomitos + tumor + neuropatia + igG + pcr + linfocitos + igE, data = data_regression_factors, family = binomial)
+summary(modelo_todas_confusoras)
+modelo_todas_confusoras_OR <- exp(cbind(OR = coef(modelo_todas_confusoras), confint(modelo_todas_confusoras)))
+modelo_todas_confusoras_OR
+
+# Seguimos sin ver ninguna asociación estadísticamente significativa (los p-valores
+# no son < 0.05, y en la tabla de OR todos los IC contienen 1). Además, vemos que
+# AIC aumenta al añadir estas variables, por lo que la calidad de nuestro modelo
+# ha empeorado.
+comparacion_AIC <- data.frame(
+  modelo = c("modelo_sin_ajuste", "modelo_todas_confusoras"),
+  AIC = c(modelo_sin_ajuste$aic, modelo_todas_confusoras$aic)
+)
+comparacion_AIC
+# Vamos a hacer la tabla de la regresión logística para el ejercicio usando el
+# modelo_todas_confusoras (aunque sea peor), lo pondremos directamente en el 
+# documento Word usando los datos de "summary(modelo_todas_confusoras)" y 
+# "modelo_todas_confusoras_OR".
 ```
 
