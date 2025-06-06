@@ -22,11 +22,13 @@ library(stats)
 library(ggplot2)
 library(openxlsx)
 library(tidyverse)
+library(factoextra)
+library(gtsummary)
 ```
 
 ## Archivos
 ```{r}
-data <- read.csv("Dataset expresión genes.csv", header = TRUE)
+data <- read.csv("G:/PERSONAL/Edurne/MasterBioInformatica_UNIR/Asignaturas/1rSemestre_EstadisticayRparaCienciasdelaSalud/Actividad3/Dataset expresión genes.csv", header = TRUE)
 data <- data[, -1]
 
 any(is.na(data)) # No hay ningún dato missing.
@@ -52,13 +54,345 @@ str(data)
 
 data_genes <- data %>%
   select(starts_with("AQ_"))
+
+# Miraremos cuantas variables tienen valores 0 en alguna de las observaciones
+data_genes_zeros <- colSums(data_genes == 0)
+# Todas las variables tienen al menos un valor 0, pero a excepción de ADIPOQ y NOX5 son pocos.
+# De todas maneras, no nos parecen suficientes como para eliminar ninguna variable.
+
+# Haremos un boxplot para ver la expresión de los distintos genes
+boxplot(data_genes)
+# Hay valores tan elevados que distorsionan los boxplots, escalaremos los datos para que sean más comparables.
+
+data_genes_scaled <- scale(data_genes)
+boxplot(data_genes_scaled)
+
+# Estos datos son los que usaremos para el PCA (podríamos escalarlos en la misma función de prcomp, pero
+# como ya tenemos el dataframe escalado, usaremos este)
+
+pca <- prcomp(data_genes_scaled)
+# Con esto obtenemos una tabla con los 46 principal components, y el peso que 
+# cada variable tiene en cada uno de estos PCs. Para poder sacar la varianza explicada
+# de cada componente (o dimensión) usaremos las funciones de la libreria factoextra.
+
+eigenvalues <- get_eigenvalue(pca)
+
+# Para obtener la proporción de la varianza total acumulada, deberíamos usar la última
+# columna de este nuevo dataframe.
+Tabla_PCA_componentes <- as.data.frame(eigenvalues[, "cumulative.variance.percent"])
+rownames(Tabla_PCA_componentes) <- rownames(eigenvalues) 
+names(Tabla_PCA_componentes)[1] <- "Varianza_acumulada"
+Tabla_PCA_componentes$Varianza_acumulada <- round(Tabla_PCA_componentes$Varianza_acumulada, 1)
+
+print(Tabla_PCA_componentes)
+write.xlsx(Tabla_PCA_componentes, file = "Tabla_PCA_Componentes.xlsx", rowNames = TRUE)
+
+# También se puede representar en un scree plot, aunque aquí representamos el 
+# porcentaje de la variación explicada de cada componente/dimension (sin acumular)
+fviz_eig(pca, addlabels = TRUE)
+
+# Como podemos observar, si quisieramos escoger aquellos componentes o dimensiones 
+# que juntos expliquen al menos un 70% de la varianza acumulada, deberíamos escoger hasta la Dim.5.
+
+# Para hacer una tabla que nos muestre las cargas de cada variable en estas 5 dimensiones
+# o componentes, podemos usar el componente "rotation" de la lista "pca". Cambiaremos
+# los nombres de las filas para que coincidan con la Tabla_PCA_Componentes
+
+Tabla_PCA_cargas <- as.data.frame(pca$rotation[, c("PC1", "PC2", "PC3", "PC4", "PC5")])
+colnames(Tabla_PCA_cargas) <- c("Dim.1", "Dim.2", "Dim.3", "Dim.4", "Dim.5")
+Tabla_PCA_cargas <- Tabla_PCA_cargas %>%
+  mutate(across(where(is.numeric), ~ round(., 2)))
+print(Tabla_PCA_cargas)
+write.xlsx(Tabla_PCA_cargas, file = "Tabla_PCA_cargas.xlsx", rowNames = TRUE)
 ```
 
 
 ## Gráficos descriptivos de los componentes principales
 
+### Gráficos para las variables
+```{r}
+# Aunque dijimos que necesitaríamos las primeras 5 dimensiones para tener un 70% 
+# de la varianza explicada acumulada, ahora usaremos las primeras 2 para hacer
+# los gráficos descriptivos por simplicidad.
+
+# Primero extraeremos el valor de las variables, que se usarán a posteriori.
+var <- get_pca_var(pca)
+
+# Ahora haremos un gráfico de correlación variable para ver la relación entre
+# todas las variables en las dimensiones 1 y 2. Además, aprovecharemos para colorear
+# las variables según su valor de cos2, lo que nos indicará la importancia de cada variable.
+
+correlacion_variable_graph <- fviz_pca_var(pca, col.var = "cos2", 
+             gradient.cols = c("blue", "yellow", "red"),
+             repel = TRUE)
+
+correlacion_variable_graph + 
+  ggtitle("Gráfico de correlación variable del PCA") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+# Tenemos tantas variables que el gráfico es un poco confuso, pero podemos ver
+# que la mayoría de variables se van hacia la izquierda. Es decir, se relacionan
+# negativamente con la Dim.1 (eje X). Esto lo podemos corroborar en la tabla de cargas,
+# donde vemos que la mayoria son negativas en Dim.1.
+# Además, segun los colores, podemos decir que tanto ADIPOQ como NOX5 (en azul)
+# parecen ser poco importantes en estas dimensiones, mientras que JAK1 (en rojo) 
+# lo es mucho.
+
+# La importancia de las variables para estas dimensiones también la podemos 
+# representar en un gráfico de barras representando el valor de cos2
+
+variable_cos2_graph <- fviz_cos2(pca, choice = "var", axes = 1:2)
+variable_cos2_graph + 
+  ggtitle("Importancia de las variables en Dim.1-2 (según Cos2)") +
+  theme(plot.title = element_text(hjust = 0.5),
+        axis.text.x = element_text(size = 8))
+
+# Como intuíamos en la anterior gráfica, JAK1 es la variable más importante.
+
+# Si ahora lo que queremos ver es la importancia de cada variable, pero por
+# dimensión individual en vez de las dos primeras juntas, podemos hacer otro gráfico:
+
+# Para la dimension 1
+contribucion_dim1 <- fviz_contrib(pca, choice = "var", axes = 1)
+contribucion_dim1 + 
+  ggtitle("Importancia de las variables en la Dim.1") +
+  theme(plot.title = element_text(hjust = 0.5),
+        axis.text.x = element_text(size = 8))
+
+# Para la dimension 2
+contribucion_dim2 <- fviz_contrib(pca, choice = "var", axes = 2)
+contribucion_dim2 + 
+  ggtitle("Importancia de las variables en la Dim.2") +
+  theme(plot.title = element_text(hjust = 0.5),
+        axis.text.x = element_text(size = 8))
+
+
+# Con esto podemos ver que, por ejemplo, JAK1 que la más importante en los gráficos
+# anteriores, realmente es importante en la dimensión 1. No obstante, como la Dim.1
+# ya contribuye a más del 50% de la varianza explicada, es normal que algo importante
+# en esta dimensión lo siga siendo aunque tengamos en cuenta también la Dim.2.
+
+# Lo que también observamos es que en la Dim.1 hay muchas variables que contribuyen de forma similar,
+# mientras que en la Dim.2 el % de contribución de las variables baja rápidamente tras las primeras 6.
+```
+
+### Gráficos para las observaciones
+```{r}
+# Hasta ahora hemos estado viendo el impacto de las variables (genes) en los componentes
+# del PCA, pero también podemos hacer gráficos similares para ver el impacto de las 
+# observaciones (pacientes).
+
+correlacion_individuals_graph <- fviz_pca_ind(pca, col.ind = "cos2",
+             gradient.cols = c("blue", "yellow", "red"),
+             repel = TRUE)
+correlacion_individuals_graph + 
+  ggtitle("Gráfico de correlación de los individuos del PCA") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+# En este gráfico vemos que los individuos están bastante repartidos, aunque sobre
+# todo a lo largo del eje X (tiene sentido, ya que se trata de la Dim.1, que contribuye
+# mucho más a la varianza explicada que la Dim.2). En cuanto a los colores, vemos que los
+# valores más azules son los que están más cerca del origen, lo cual también tiene sentido
+# porque significa que estas 2 dimensiones no tienen efecto en ellos. En cambio, si que vemos
+# un grupo rojo a la derecha, en el que la dimension 1 afecta positivamente en ellos. Tal vez
+# tendrán valores bajos de JAK1 (ya que la variable está negativamente relacionada con al Dim.1)
+# y otras variables importantes para esa dimensión.
+
+```
+
+
+### Gráficos conjuntos variables - observaciones
+```{r}
+# Por último, también podemos hacer un biplot, que sería una combinación entre el gráfico
+# de correlación de variables y el de individuos.
+
+
+biplot_graph_dim1.2 <- fviz_pca_biplot(pca, 
+                                col.ind = "blue",
+                                col.var = "darkgreen",
+                                axes = c(1, 2), 
+                                repel = TRUE)
+biplot_graph_dim1.2 + 
+  ggtitle("Gráfico biplot del PCA (Dimensiones 1 y 2)") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+# También podemos mirarlo para otras dimensiones
+biplot_graph_dim1.3 <- fviz_pca_biplot(pca, 
+                                col.ind = "blue",
+                                col.var = "darkgreen",
+                                axes = c(1, 3), 
+                                repel = TRUE)
+biplot_graph_dim1.3 + 
+  ggtitle("Gráfico biplot del PCA (Dimensiones 1 y 3)") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+biplot_graph_dim2.3 <- fviz_pca_biplot(pca, 
+                                col.ind = "blue",
+                                col.var = "darkgreen",
+                                axes = c(2, 3), 
+                                repel = TRUE)
+biplot_graph_dim2.3 + 
+  ggtitle("Gráfico biplot del PCA (Dimensiones 2 y 3)") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+# En el plot de las Dim2. y Dim.3 vemos que hay muchos individuos cerca o en el 
+# origen, porque ambas dimensiones contribuyen poco (5-6%) a la varianza. No obstante,
+# seguimos viendo individuos alejados en los cuatro cuadrantes del gráfico, lo que
+# significa que estas dimensiones siguen siendo importantes para separarlos.
+# Aunque cueste ver, en este último gráfico también vemos variables (flechas) que
+# apuntan en diferentes direcciones, no son casi todas negativas como ocurría en Dim.1,
+# lo que también concuerda con los signos de las cargas de cada dimensión.
+```
 
 ## Tabla descriptiva de los componentes principales
+```{r}
+# Antes de nada, para saber si para las estadísticas descriptivas necesitamos usar
+# media y desviación estándard o mediana y rango intercuartílico, vamos a ver la
+# distribución que presenta cada variable de nuestra tabla de genes.
+
+# Con apply haremos el test de shapiro por cada columna (gen) y sacaremos el p-valor.
+# Importante, lo haremos en los datos SIN escalar.
+data_genes_shapiro <- apply(data_genes, 2, function(x) shapiro.test(x)$p.value)
+# Miraremos cuantos genes tienen un p-value< 0.05 (no tienen una distribución normal)
+table(data_genes_shapiro < 0.05)
+
+# Nos sale que 46 genes (de los 46 totales) tienen p<0.05. Es decir, sus distribuciones
+# no son normales. Por lo tanto, usaremos mediana y rango intercuartílico para las
+# estadísticas descriptivas.
+
+
+# Lo siguiente que vamos a hacer es dividir nuestra muestra, por cada componente
+# o dimension, en terciles. Para eso, primero debemos sacar el valor de cada componente
+# para cada paciente con el pca$x. Nos centraremos en los dos primeros componentes.
+
+pca_values <- as.data.frame(pca$x)
+pca_values <- pca_values[, c("PC1", "PC2")]
+
+PC1_tercil <- quantile(pca_values$PC1, c(1/3, 2/3))
+PC2_tercil <- quantile(pca_values$PC2, c(1/3, 2/3))
+
+
+# Y ahora clasificaremos a los pacientes dependiendo de a qué tercil corresponden 
+# en PC1 y PC2.
+pca_values$PC1_tercil <- cut(pca_values$PC1,
+                             breaks = c(-Inf, PC1_tercil, Inf),
+                             labels = c("T1", "T2", "T3"),
+                             right = FALSE)
+pca_values$PC1_tercil <- factor(pca_values$PC1_tercil, levels = c("T1", "T2", "T3"))
+
+pca_values$PC2_tercil <- cut(pca_values$PC2,
+                             breaks = c(-Inf, PC2_tercil, Inf),
+                             labels = c("T1", "T2", "T3"),
+                             right = FALSE)
+pca_values$PC2_tercil <- factor(pca_values$PC2_tercil, levels = c("T1", "T2", "T3"))
+
+terciles <- data.frame(
+  paciente = rownames(pca_values),
+  PC1_tercil = pca_values$PC1_tercil,
+  PC2_tercil = pca_values$PC2_tercil)
+
+
+# Ahora con gtsummary haremos una tabla con las estadísticas descriptivas de cada
+# gen en función de los pacientes incluidos en cada tercil de los componentes 1 y
+# 2 del PCA.
+# Además, para ver si hay diferencias entre los terciles de cada componente, realizaremos
+# un test Kruskal-Wallis (ya que los datos no siguen distribución normal).
+
+# Para poder poner ambos PCs en la misma tabla, primero deberíamos pasar nuestro
+# dataframe a formato largo duplicando los datos. Después duplicaremos la tabla
+# y añadiremos dos columnas a cada una: una columna especificará el PC y la otra
+# el tercil al que cada paciente corresponde en ese PC. Por último, fusionaremos
+# ambas tablas y las usaremos para el gtsummary.
+
+data_genes_longer<- data_genes %>%
+  mutate(paciente = rownames(data_genes))
+
+data_genes_longer <- pivot_longer(data_genes_longer,
+                                  cols = -paciente,
+                                  names_to = "gen",
+                                  values_to = "expresion")
+
+data_genes_longer <- data_genes_longer %>%
+  left_join(terciles, by = "paciente")
+
+data_genes_longer_PC1 <- data_genes_longer %>%
+  select(-PC2_tercil) %>%
+  mutate(componente = "PC1") %>%
+  rename(Tercil = PC1_tercil)
+
+data_genes_longer_PC2 <- data_genes_longer %>%
+  select(-PC1_tercil) %>%
+  mutate(componente = "PC2") %>%
+  rename(Tercil = PC2_tercil)
+
+# Ahora fusionaremos las dos tablas
+data_genes_longer_complete <- bind_rows(data_genes_longer_PC1, data_genes_longer_PC2)
+data_genes_longer_complete$componente <- factor(data_genes_longer_complete$componente, 
+                                                levels = c("PC1", "PC2"))
+str(data_genes_longer_complete)
+
+# Ahora procedemos con la tabla usando gtsummary, estratificando por los componentes
+# y luego diviendo por los terciles de cada componente. El problema es que, al estar
+# trabajando con una tabla en formato largo, vamos a tener que hacer varios pasos previos
+# para hacer la tabla para cada gen (si lo dejaramos así, el resultado es una tabla con sólo
+# una fila "expresion").
+
+gene_list <- unique(data_genes_longer_complete$gen)
+
+# Haremos una función para que haga la tabla por cada gen
+# Hay que hacer un rename a "expresion" porque si no en la tabla final cada fila
+# se nombrará "expresion" en vez del gen al que hace referencia.
+
+tabla_por_gen <- function(nombre_gen) {
+  data_genes_longer_complete %>%
+    filter(gen == nombre_gen) %>%
+    rename(!!nombre_gen := expresion) %>%
+    tbl_strata(strata = componente,
+             .tbl_fun = ~.x %>%
+               tbl_summary(by = Tercil,
+                           include = all_of(nombre_gen),
+                           statistic = all_of(nombre_gen) ~ "{median} ({p25} - {p75})",
+                           digits = all_of(nombre_gen) ~ function(x) formatC(x, format = "e", digits = 1)) %>%
+               add_p(test = all_of(nombre_gen) ~ "kruskal.test",
+                     pvalue_fun = ~ style_pvalue(.x, digits = 3)) %>%
+               modify_header(label = nombre_gen))
+  }
+  
+# Aplicamos esto a cada gen de nuestra lista gene_list
+lista_tablas_genes <- lapply(gene_list, function(x) {
+  tabla_por_gen(x)
+})
+
+# Ahora apiliamos las tablas con una funcion de gtsummary y cambiamos el nombre
+# del titulo de las filas
+tabla_genes_completa <- tbl_stack(lista_tablas_genes)
+tabla_genes_completa <- tabla_genes_completa %>%
+  modify_header(label = "**Gen**")
+
+tabla_genes_completa
+```
+
 
 
 ## Modelo de regresión logística
+```{r}
+# Para la regresión logística usaremos de predictores los terciles de PC1 y PC2,
+# que ya recogen información de la expresión de los 46 genes, por lo que crearemos
+# una tabla que incluya las ID de los pacientes, los terciles, el resto de variables
+# no-génicas y la variable respuesta metástasis (si / no)
+
+data_regression <- data %>%
+  select(-starts_with("AQ_")) %>%
+  rename(paciente = id) %>%
+  left_join(terciles, by = "paciente")
+
+# Ahora vamos a asegurarnos que todas aquellas variables que no son numéricas se
+# se pasen a factor (menos la variable paciente)
+
+data_regression_factors <- data_regression %>%
+  mutate(
+    across(.cols = where(is.character) & !all_of("paciente"), as.factor)
+  )
+str(data_regression_factors)
+```
+

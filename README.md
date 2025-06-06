@@ -28,3 +28,7 @@ Archivo de google colab en el que compartiremos nuestros códigos de RStudio par
 - Estadística_Actividad3_Grupo2.2.Rmd
   
 Archivo .Rmd con las respuestas para la actividad 3 de Estadística y R.
+
+- Actividad3_Grupo2.2_TablaseInforme.docx
+
+Archivo word con las tablas y el informe de la actividad 3.
