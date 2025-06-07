@@ -3,7 +3,7 @@ IPC-UNIR25-Grupo2.2_Actividad 3 grupal-crear un repositorio GitHub.
 
 Aprovecharemos para añadir en este repositorio todos los archivos de la actividad 3 grupal de Estadística y R.
 
-Explicación de los archivos subidos:
+*Explicación de los archivos subidos:*
 
 - LICENSE
   
