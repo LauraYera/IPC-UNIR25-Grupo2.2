@@ -30,12 +30,8 @@ library(glmnet)
 
 ## Archivos
 ```{r}
-getwd()
-path <- '/Users/laurayf/Desktop/UNIR/1Q/Estadística R para Ciencias de la Salud/Actividades/mubio02_act3'
-setwd(path)
 data <- read.csv("Dataset expresión genes.csv", header = TRUE)
 data <- data[, -1]
-
 any(is.na(data)) # No hay ningún dato missing.
 
 # Como el ID de los pacientes no corresponde al número de fila, vamos a añadir "ID_"
@@ -91,8 +87,7 @@ Tabla_PCA_componentes <- as.data.frame(eigenvalues[, "cumulative.variance.percen
 rownames(Tabla_PCA_componentes) <- rownames(eigenvalues) 
 names(Tabla_PCA_componentes)[1] <- "Varianza_acumulada"
 Tabla_PCA_componentes$Varianza_acumulada <- round(Tabla_PCA_componentes$Varianza_acumulada, 1)
-
-print(Tabla_PCA_componentes)
+Tabla_PCA_componentes
 write.xlsx(Tabla_PCA_componentes, file = "Tabla_PCA_Componentes.xlsx", rowNames = TRUE)
 
 # También se puede representar en un scree plot, aunque aquí representamos el 
@@ -110,7 +105,7 @@ Tabla_PCA_cargas <- as.data.frame(pca$rotation[, c("PC1", "PC2", "PC3", "PC4", "
 colnames(Tabla_PCA_cargas) <- c("Dim.1", "Dim.2", "Dim.3", "Dim.4", "Dim.5")
 Tabla_PCA_cargas <- Tabla_PCA_cargas %>%
   mutate(across(where(is.numeric), ~ round(., 2)))
-print(Tabla_PCA_cargas)
+Tabla_PCA_cargas
 write.xlsx(Tabla_PCA_cargas, file = "Tabla_PCA_cargas.xlsx", rowNames = TRUE)
 ```
 
@@ -133,11 +128,11 @@ var <- get_pca_var(pca)
 
 correlacion_variable_graph <- fviz_pca_var(pca, col.var = "cos2", 
              gradient.cols = c("blue", "yellow", "red"),
-             repel = TRUE)
-
-correlacion_variable_graph + 
+             repel = TRUE) + 
   ggtitle("Gráfico de correlación variable del PCA") +
   theme(plot.title = element_text(hjust = 0.5))
+
+correlacion_variable_graph 
 
 # Tenemos tantas variables que el gráfico es un poco confuso, pero podemos ver
 # que la mayoría de variables se van hacia la izquierda. Es decir, se relacionan
@@ -152,11 +147,12 @@ correlacion_variable_graph +
 # La importancia de las variables para estas dimensiones también la podemos 
 # representar en un gráfico de barras representando el valor de cos2
 
-variable_cos2_graph <- fviz_cos2(pca, choice = "var", axes = 1:2)
-variable_cos2_graph + 
+variable_cos2_graph <- fviz_cos2(pca, choice = "var", axes = 1:2) + 
   ggtitle("Importancia de las variables en Dim.1-2 (según Cos2)") +
   theme(plot.title = element_text(hjust = 0.5),
         axis.text.x = element_text(size = 8))
+
+variable_cos2_graph 
 
 # Como intuíamos en la anterior gráfica, JAK1 es la variable más importante y en cambio ADIPOQ y NOX5 se ve
 # claramente que en estas dimensiones tiene un peso muy bajo.
@@ -165,19 +161,20 @@ variable_cos2_graph +
 # dimensión individual en vez de las dos primeras juntas, podemos hacer otro gráfico:
 
 # Para la dimension 1
-contribucion_dim1 <- fviz_contrib(pca, choice = "var", axes = 1)
-contribucion_dim1 + 
+contribucion_dim1 <- fviz_contrib(pca, choice = "var", axes = 1) + 
   ggtitle("Importancia de las variables en la Dim.1") +
   theme(plot.title = element_text(hjust = 0.5),
         axis.text.x = element_text(size = 8))
 
+contribucion_dim1
+
 # Para la dimension 2
-contribucion_dim2 <- fviz_contrib(pca, choice = "var", axes = 2)
-contribucion_dim2 + 
+contribucion_dim2 <- fviz_contrib(pca, choice = "var", axes = 2) + 
   ggtitle("Importancia de las variables en la Dim.2") +
   theme(plot.title = element_text(hjust = 0.5),
         axis.text.x = element_text(size = 8))
 
+contribucion_dim2
 
 # Con esto podemos ver que, por ejemplo, JAK1 que la más importante en los gráficos
 # anteriores, realmente es importante en la dimensión 1. No obstante, como la Dim.1
@@ -196,10 +193,11 @@ contribucion_dim2 +
 
 correlacion_individuals_graph <- fviz_pca_ind(pca, col.ind = "cos2",
              gradient.cols = c("blue", "yellow", "red"),
-             repel = TRUE)
-correlacion_individuals_graph + 
+             repel = TRUE) + 
   ggtitle("Gráfico de correlación de los individuos del PCA") +
   theme(plot.title = element_text(hjust = 0.5))
+
+correlacion_individuals_graph 
 
 # En este gráfico vemos que los individuos están bastante repartidos, aunque sobre
 # todo a lo largo del eje X (tiene sentido, ya que se trata de la Dim.1, que contribuye
@@ -222,29 +220,32 @@ biplot_graph_dim1.2 <- fviz_pca_biplot(pca,
                                 col.ind = "blue",
                                 col.var = "darkgreen",
                                 axes = c(1, 2), 
-                                repel = TRUE)
-biplot_graph_dim1.2 + 
+                                repel = TRUE)  + 
   ggtitle("Gráfico biplot del PCA (Dimensiones 1 y 2)") +
   theme(plot.title = element_text(hjust = 0.5))
+
+biplot_graph_dim1.2
 
 # También podemos mirarlo para otras dimensiones
 biplot_graph_dim1.3 <- fviz_pca_biplot(pca, 
                                 col.ind = "blue",
                                 col.var = "darkgreen",
                                 axes = c(1, 3), 
-                                repel = TRUE)
-biplot_graph_dim1.3 + 
+                                repel = TRUE) + 
   ggtitle("Gráfico biplot del PCA (Dimensiones 1 y 3)") +
   theme(plot.title = element_text(hjust = 0.5))
+
+biplot_graph_dim1.3
 
 biplot_graph_dim2.3 <- fviz_pca_biplot(pca, 
                                 col.ind = "blue",
                                 col.var = "darkgreen",
                                 axes = c(2, 3), 
-                                repel = TRUE)
-biplot_graph_dim2.3 + 
+                                repel = TRUE) + 
   ggtitle("Gráfico biplot del PCA (Dimensiones 2 y 3)") +
   theme(plot.title = element_text(hjust = 0.5))
+
+biplot_graph_dim2.3
 
 # En el plot de las Dim2. y Dim.3 vemos que hay muchos individuos cerca o en el 
 # origen, porque ambas dimensiones contribuyen poco (5-6%) a la varianza. No obstante,
@@ -545,9 +546,7 @@ numeric_resultados_PC2_tercil_df$variable[numeric_resultados_PC2_tercil_df$p_val
 # Pero primero vamos a asegurarnos de los niveles de las variables dependientes e independientes,
 # para que la categoria de referencia sea la adecuada ("no" en metastasis).
 
-data_regression_factors$metastasis <- factor(data_regression_factors$metastasis, levels = c("no", "si"))
-
-modelo_sin_ajuste <- glm(metastasis ~ PC1_tercil + PC2_tercil, data = data_regression_factors, family = binomial)
+modelo_sin_ajuste <- glm(metastasis ~ PC1_tercil + PC2_tercil, data = data_regression_factors, family = "binomial")
 summary(modelo_sin_ajuste)
 modelo_sin_ajuste_OR <- exp(cbind(OR = coef(modelo_sin_ajuste), confint(modelo_sin_ajuste)))
 modelo_sin_ajuste_OR
@@ -556,7 +555,7 @@ modelo_sin_ajuste_OR
 # parece tener un efecto en la variable dependiente. Cuando calculamos los OR, todos están cerca de 1,
 # y los intervalos de confianza incluyen el 1, así que no parece que estén asociados a ningun riesgo.
 
-modelo_todas_confusoras <- glm(metastasis ~ PC1_tercil + PC2_tercil + vomitos + tumor + neuropatia + igG + pcr + linfocitos + igE, data = data_regression_factors, family = binomial)
+modelo_todas_confusoras <- glm(metastasis ~ PC1_tercil + PC2_tercil + vomitos + tumor + neuropatia + igG + pcr + linfocitos + igE, data = data_regression_factors, family = "binomial")
 summary(modelo_todas_confusoras)
 modelo_todas_confusoras_OR <- exp(cbind(OR = coef(modelo_todas_confusoras), confint(modelo_todas_confusoras)))
 modelo_todas_confusoras_OR
