@@ -1,6 +1,6 @@
 ---
 title: "Resolución Actividad 3 máster Bioinformática UNIR (2025)"
-author: "Edurne García Vidal, Laura Yera Fernández, Sergio Gil Peña, Ander López Imas,Eva Coll Ripoll"
+author: "Edurne García Vidal, Laura Yera Fernández, Sergio Gil Peña, Ander López Imas, Eva Coll Ripoll"
 date: "2025-06-03"
 output: 
   html_document:
@@ -16,7 +16,7 @@ knitr::opts_chunk$set(echo = TRUE)
 # Estadística y R para Ciencias de la Salud: Actividad 3
 
 ## Librerias
-```{r}
+```{r warning = FALSE, message = FALSE}
 rm(list=ls())
 library(stats)
 library(ggplot2)
@@ -46,7 +46,6 @@ rownames(data) <- data$id
 
 data$metastasis <- ifelse (data$extension == "metastasico", "si", "no")
 data$metastasis <- as.factor(data$metastasis)
-str(data)
 ```
 
 ## PCA y tablas
