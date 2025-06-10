@@ -1,0 +1,85 @@
+---
+title: "Resolución Actividad 3 máster Bioinformática UNIR (2025)"
+author: Laura Yera Fernandez, Edurne García Vidal, Sergio Gil Peña, Ander López Imas,
+  Eva Coll Ripoll
+date: "2025-06-10"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Algoritmo e Inteligencia Artificial: Actividad 3 grupal
+
+# Librerías
+
+```{r warning = FALSE, message = FALSE}
+rm(list=ls())
+library(ggplot2)
+library(stats)
+library(Rtsne)
+library(RDRToolbox)
+library(uwot)
+library(glmnet)
+library(tidyverse)
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(rattle)
+library(PRROC)
+library(gridExtra)
+library(grDevices)
+library(randomForest)
+```
+
+# Lectura y procesamiento de los datos
+
+```{r}
+setwd("~/Desktop/UNIR/1Q/Algoritmo_e_Inteligencia_Artificial/Actividad grupal")
+
+genes.raw <- read.table("column_names.txt", quote = "\"", comment.char = "")
+colnames(genes.raw) <- c("Genes")
+length(genes.raw$Genes)
+
+labels.raw <- read.csv('classes.csv', header = FALSE, sep = ";")
+colnames(labels.raw) <- c("X","Class")
+
+data.raw <- read.csv('gene_expression.csv', header = FALSE, sep = ";")
+colnames(data.raw) <- c(genes.raw$Genes) #asumimos que la lista de genes corresponde ordenadamente a las columnas de los datos de la expresión de genes, si no quisieramos relacionarlo deberiamos escribir este código colnames(data.rawa) <- paste0("gene_", c(0:499))
+rownames(data.raw) <- c(labels.raw$X)
+
+data.raw$Class <- labels.raw$Class
+```
+
+##### Sanity check data
+
+```{r}
+anyNA(data.raw) #Para decirme si hay NA o NaN (Not available o Not a number) en la data
+
+any(data.raw[ , -ncol(data.raw)] == 0)
+zero_counts <- colSums(data.raw[ , -ncol(data.raw)] == 0)
+zero_counts
+
+zero_df <- data.frame(
+  Variable = names(zero_counts),
+  Zeros = as.numeric(zero_counts)
+)
+ggplot(zero_df, aes(x = Variable, y = Zeros, fill = Variable)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Cantidad de ceros por columna",
+       x = "Variable",
+       y = "Número de ceros") +
+  theme_minimal() +
+  theme(legend.position = "none", 
+        axis.text.x = element_blank())  # Oculta la leyenda
+
+# Podemos hacer un diagrama de cajas para variable y vemos los estadísticos y outliers
+boxplot(data.raw[, 1:10], main = "Boxplot de los 10 primeros genes")
+```
+
+
+
+
+
+
