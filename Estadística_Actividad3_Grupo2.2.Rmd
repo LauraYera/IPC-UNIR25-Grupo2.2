@@ -1,6 +1,6 @@
 ---
 title: "Resolución Actividad 3 máster Bioinformática UNIR (2025)"
-author: "Edurne García Vidal, Laura Yera Fernández, Sergio Gil Peña, Ander López Imas,Eva Coll Ripoll"
+author: "Edurne García Vidal, Laura Yera Fernández, Sergio Gil Peña, Ander López Imas, Eva Coll Ripoll"
 date: "2025-06-03"
 output: 
   html_document:
@@ -16,7 +16,7 @@ knitr::opts_chunk$set(echo = TRUE)
 # Estadística y R para Ciencias de la Salud: Actividad 3
 
 ## Librerias
-```{r}
+```{r warning = FALSE, message = FALSE}
 rm(list=ls())
 library(stats)
 library(ggplot2)
@@ -46,7 +46,6 @@ rownames(data) <- data$id
 
 data$metastasis <- ifelse (data$extension == "metastasico", "si", "no")
 data$metastasis <- as.factor(data$metastasis)
-str(data)
 ```
 
 ## PCA y tablas
@@ -75,6 +74,7 @@ boxplot(data_genes_scaled)
 # como ya tenemos el dataframe escalado, usaremos este)
 
 pca <- prcomp(data_genes_scaled)
+
 # Con esto obtenemos una tabla con los 46 principal components, y el peso que 
 # cada variable tiene en cada uno de estos PCs. Para poder sacar la varianza explicada
 # de cada componente (o dimensión) usaremos las funciones de la libreria factoextra.
@@ -83,6 +83,7 @@ eigenvalues <- get_eigenvalue(pca)
 
 # Para obtener la proporción de la varianza total acumulada, deberíamos usar la última
 # columna de este nuevo dataframe.
+
 Tabla_PCA_componentes <- as.data.frame(eigenvalues[, "cumulative.variance.percent"])
 rownames(Tabla_PCA_componentes) <- rownames(eigenvalues) 
 names(Tabla_PCA_componentes)[1] <- "Varianza_acumulada"
@@ -92,6 +93,7 @@ write.xlsx(Tabla_PCA_componentes, file = "Tabla_PCA_Componentes.xlsx", rowNames 
 
 # También se puede representar en un scree plot, aunque aquí representamos el 
 # porcentaje de la variación explicada de cada componente/dimension (sin acumular)
+
 fviz_eig(pca, addlabels = TRUE)
 
 # Como podemos observar, si quisieramos escoger aquellos componentes o dimensiones 
@@ -109,7 +111,6 @@ Tabla_PCA_cargas
 write.xlsx(Tabla_PCA_cargas, file = "Tabla_PCA_cargas.xlsx", rowNames = TRUE)
 ```
 
-
 ## Gráficos descriptivos de los componentes principales
 
 ### Gráficos para las variables
@@ -120,6 +121,7 @@ write.xlsx(Tabla_PCA_cargas, file = "Tabla_PCA_cargas.xlsx", rowNames = TRUE)
 # creemos que con dos dimensiones podría ser suficiente para representar la estructura principal de los datos.
 
 # Primero extraeremos el valor de las variables, que se usarán a posteriori.
+
 var <- get_pca_var(pca)
 
 # Ahora haremos un gráfico de correlación variable para ver la relación entre
@@ -161,6 +163,7 @@ variable_cos2_graph
 # dimensión individual en vez de las dos primeras juntas, podemos hacer otro gráfico:
 
 # Para la dimension 1
+
 contribucion_dim1 <- fviz_contrib(pca, choice = "var", axes = 1) + 
   ggtitle("Importancia de las variables en la Dim.1") +
   theme(plot.title = element_text(hjust = 0.5),
@@ -169,6 +172,7 @@ contribucion_dim1 <- fviz_contrib(pca, choice = "var", axes = 1) +
 contribucion_dim1
 
 # Para la dimension 2
+
 contribucion_dim2 <- fviz_contrib(pca, choice = "var", axes = 2) + 
   ggtitle("Importancia de las variables en la Dim.2") +
   theme(plot.title = element_text(hjust = 0.5),
@@ -227,6 +231,7 @@ biplot_graph_dim1.2 <- fviz_pca_biplot(pca,
 biplot_graph_dim1.2
 
 # También podemos mirarlo para otras dimensiones
+
 biplot_graph_dim1.3 <- fviz_pca_biplot(pca, 
                                 col.ind = "blue",
                                 col.var = "darkgreen",
@@ -264,14 +269,16 @@ biplot_graph_dim2.3
 
 # Con el comando apply haremos el test de shapiro por cada columna (gen) y sacaremos el p-valor.
 # Importante, lo haremos en los datos SIN escalar.
+
 data_genes_shapiro <- apply(data_genes, 2, function(x) shapiro.test(x)$p.value)
 data_genes_shapiro
 
 # Miramos cuantos genes tienen un p-value< 0.05 (significaria pues, que no siguen una distribución normal)
+
 table(data_genes_shapiro < 0.05)
 
 # Nos sale que 46 genes (de los 46 totales) tienen p<0.05. Es decir, los 46 genes siguen una distribución
-# no normale. Por lo tanto, usaremos mediana y rango intercuartílico para las estadísticas descriptivas.
+# no normal. Por lo tanto, usaremos mediana y rango intercuartílico para las estadísticas descriptivas.
 
 
 # Lo siguiente que vamos a hacer es dividir nuestra muestra, por cada componente
@@ -289,6 +296,7 @@ PC2_tercil
 
 # Y ahora clasificaremos a los pacientes dependiendo de a qué tercil corresponden 
 # en PC1 y PC2.
+
 pca_values$PC1_tercil <- cut(pca_values$PC1,
                              breaks = c(-Inf, PC1_tercil, Inf),
                              labels = c("T1", "T2", "T3"),
@@ -313,79 +321,41 @@ terciles <- data.frame(
 # Además, para ver si hay diferencias entre los terciles de cada componente, realizaremos
 # un test Kruskal-Wallis (ya que los datos no siguen distribución normal).
 
-# Para poder poner ambos PCs en la misma tabla, primero deberíamos pasar nuestro
-# dataframe a formato largo duplicando los datos. Después duplicaremos la tabla
-# y añadiremos dos columnas a cada una: una columna especificará el PC y la otra
-# el tercil al que cada paciente corresponde en ese PC. Por último, fusionaremos
-# ambas tablas y las usaremos para el gtsummary.
+data_genes$PC1_tercil <- pca_values$PC1_tercil
+data_genes$PC2_tercil <- pca_values$PC2_tercil
 
-data_genes_longer<- data_genes %>%
-  mutate(paciente = rownames(data_genes))
+tabla_PC1 <- data_genes %>%
+  select(1:47, PC1_tercil) %>%
+  tbl_summary(by = PC1_tercil,
+              statistic = all_continuous() ~ "{p50} ({p25} - {p75})",
+              digits = all_continuous() ~ function(x) formatC(x, format = "e", digits = 2)) %>%
+  add_p(test = all_continuous() ~ "kruskal.test",
+        pvalue_fun = ~ style_pvalue(.x, digits = 3))
 
-data_genes_longer <- pivot_longer(data_genes_longer,
-                                  cols = -paciente,
-                                  names_to = "gen",
-                                  values_to = "expresion")
+tabla_PC1
 
-data_genes_longer <- data_genes_longer %>%
-  left_join(terciles, by = "paciente")
+tabla_PC2 <- data_genes %>%
+  select(c(1:48, PC2_tercil), -47) %>%
+  tbl_summary(by = PC2_tercil,
+              statistic = all_continuous() ~ "{p50} ({p25} - {p75})",
+              digits = all_continuous() ~ function(x) formatC(x, format = "e", digits = 2)) %>%
+  add_p(test = all_continuous() ~ "kruskal.test",
+        pvalue_fun = ~ style_pvalue(.x, digits = 3))
 
-data_genes_longer_PC1 <- data_genes_longer %>%
-  select(-PC2_tercil) %>%
-  mutate(componente = "PC1") %>%
-  rename(Tercil = PC1_tercil)
+tabla_PC2
 
-data_genes_longer_PC2 <- data_genes_longer %>%
-  select(-PC1_tercil) %>%
-  mutate(componente = "PC2") %>%
-  rename(Tercil = PC2_tercil)
+# Para poder poner ambos PCs en la misma tabla con gtsummary, primero debemos crear una tabla para cada PCs por 
+# separado, puesto que las variables pertenecen con más o menos peso a ambas componentes. Seguidamente, fusionaremos
+# ambas tablas mediante tbl_merge que además nos permite poner títulos para indicar cada uno de los componentes
+# principales, PC1 y PC2.
 
-# Ahora fusionaremos las dos tablas
-data_genes_longer_complete <- bind_rows(data_genes_longer_PC1, data_genes_longer_PC2)
-data_genes_longer_complete$componente <- factor(data_genes_longer_complete$componente, 
-                                                levels = c("PC1", "PC2"))
-str(data_genes_longer_complete)
+tabla_final <- tbl_merge(
+  tbls = list(tabla_PC1, tabla_PC2),
+  tab_spanner = c("**PC1**", "**PC2**")
+) %>%
+  modify_caption("**Estadísticos descriptivos de los genes de estudio.**")
 
-# Ahora procedemos con la tabla usando gtsummary, estratificando por los componentes
-# y luego diviendo por los terciles de cada componente. El problema es que, al estar
-# trabajando con una tabla en formato largo, vamos a tener que hacer varios pasos previos
-# para hacer la tabla para cada gen (si lo dejaramos así, el resultado es una tabla con sólo
-# una fila "expresion").
-
-gene_list <- unique(data_genes_longer_complete$gen)
-gene_list
-
-# Haremos una función para que haga la tabla por cada gen
-# Hay que hacer un rename a "expresion" porque si no en la tabla final cada fila
-# se nombrará "expresion" en vez del gen al que hace referencia.
-
-tabla_por_gen <- function(nombre_gen) {
-  data_genes_longer_complete %>%
-    filter(gen == nombre_gen) %>%
-    rename(!!nombre_gen := expresion) %>%
-    tbl_strata(strata = componente,
-             .tbl_fun = ~.x %>%
-               tbl_summary(by = Tercil,
-                           include = all_of(nombre_gen),
-                           statistic = all_of(nombre_gen) ~ "{median} ({p25} - {p75})",
-                           digits = all_of(nombre_gen) ~ function(x) formatC(x, format = "e", digits = 1)) %>%
-               add_p(test = all_of(nombre_gen) ~ "kruskal.test",
-                     pvalue_fun = ~ style_pvalue(.x, digits = 3)) %>%
-               modify_header(label = nombre_gen))
-  }
-
-# Aplicamos esto a cada gen de nuestra lista gene_list
-lista_tablas_genes <- lapply(gene_list, function(x) {
-  tabla_por_gen(x)
-})
-
-# Ahora apilamos las tablas con una funcion de gtsummary y cambiamos el nombre
-# del titulo de las filas
-tabla_genes_completa <- tbl_stack(lista_tablas_genes)
-tabla_genes_completa <- tabla_genes_completa %>%
-  modify_header(label = "**Gen**")
-
-tabla_genes_completa
+tabla_final
 ```
 
 ## Modelo de regresión logística
