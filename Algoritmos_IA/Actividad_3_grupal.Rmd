@@ -40,7 +40,7 @@ library(randomForest)
 ## Lectura y procesamiento de los datos
 
 ```{r}
-setwd("G:/PERSONAL/Edurne/MasterBioInformatica_UNIR/Asignaturas/1rSemestre_AlgoritmoseInteligenciaArtificial/Actividad3")
+setwd("~/Desktop/UNIR/1Q/Algoritmo_e_Inteligencia_Artificial/Actividad grupal")
 
 genes.raw <- readLines("column_names.txt")
 
@@ -55,12 +55,12 @@ rownames(data.raw) <- labels.raw$X
 data.raw$Class <- labels.raw$Class
 ```
 
-## Sanity check data y imputación de datos faltantes
+## Sanity check data e imputación de datos faltantes
 
 ```{r}
 anyNA(data.raw) 
 #Vemos que no hay datos NA o NaN (Not available o Not a number) en la data, por 
-# lo que no nos hará falta imputar.
+#lo que no nos hará falta imputar.
 
 any(data.raw[ , -ncol(data.raw)] == 0)
 zero_counts <- colSums(data.raw[ , -ncol(data.raw)] == 0)
@@ -111,10 +111,75 @@ boxplot(data_filtered[, 1:10], main = "Boxplot de los 10 primeros genes")
 # Lo haremos directamente en los métodos de aprendizaje.
 ```
 
-
 ## Implementación de métodos no supervisados
 
 ### Reducción de dimensionalidad
+
+```{r}
+# A partir de métodos no supervisados reducimos la dimensionalidad de los datos, que consiste en 
+# transformar el conjunto de datos que tenemos de forma que se mantenga la información más relevante
+# y se descarte la más redundante.
+
+# Para ello, los dos métodos de reducción de dimensionalidad escogidos son: T-SNE y UMAP
+```
+
+### T-SNE
+
+```{r}
+# Seteamos la semilla para que sea replicable el algoritmo
+set.seed(1999)
+
+#Guardar en un dataframe los genes
+df <- sapply(data_filtered[1:476], as.numeric)
+
+tsne <- Rtsne(X=df, dims = 2)
+tsne_result <- data.frame(tsne$Y)
+
+# Graficamos
+ggplot(tsne_result, aes(x = X1, y = X2, color = data_filtered$Class)) +
+geom_point(size = 2) +
+scale_color_manual(values = c("red", "blue", "green", "orange", "purple")) +
+labs(title = "Reducción de dimensionalidad - t-SNE", x = "Dim 1", y = "Dim 2", color = "Tipos de cancer") +
+theme_classic() +
+theme(panel.grid.major = element_line(color = "gray90"), panel.grid.minor = element_blank(),
+panel.background = element_rect(fill = "gray95"), plot.title=element_text(hjust=0.5))
+
+
+# A partir del método no supervisado anterior (t-SNE) se ha mostrado una buena separación de los grupos, manteniendo
+# bien la estructura local de los puntos cercanos entre sí. Aún así, se puede observar algún punto desviado cercano # a un grupo distinto al que realmente pertenece. Por esta razón, decidimos probar otra técnica no lineal como es
+# UMAP, que se usa cuando los datos son más complejos y que podrían ofrecer una representación distinta de la
+# estructura de mis datos. Además, con esta otra técnica se podría reforzar los patrones observados con t-SNE.
+
+```
+
+### UMAP
+
+```{r}
+# Seteamos la semilla para que sea replicable el algoritmo
+set.seed(1999)
+
+# Usamos el mismo dataframe (df) de los genes 
+umap.results <- umap(df, n_neighbors=0.1 * nrow(df),
+                     n_components = 2, min_dist = 0.2, local_connectivity=1, ret_model = TRUE, verbose = FALSE)
+
+umap.df <- data.frame(umap.results$embedding)
+
+# Graficamos
+ggplot(umap.df, aes(x = X1, y = X2, color = data_filtered$Class)) +
+  geom_point(size = 2) +
+  scale_color_manual(values = c("red", "blue", "green", "orange", "purple")) +
+  labs(title = "Reducción de dimensionalidad - UMAP", x = "Dimension1", y = "Dimension2", color = "Tipos de cancer") +
+  theme_classic() +
+  theme(panel.grid.major = element_line(color = "gray90"), panel.grid.minor = element_blank(),
+        panel.background = element_rect(fill = "gray95"), plot.title=element_text(hjust=0.5))
+
+# UMAP es una técnica de reducción de dimensionalidad que sume que las muestras están distribuidas de manera
+# uniforme en un espacio topológico y que se puede aproximar a partir de estas muestras para proyectarlas en 
+# un espacio de menor dimensión. Al aplicar UMAP, se genera una visualización de dos dimensiones, donde podemos
+# observar claramente los 5 grupos correspondientes a los 5 tipos de cancer. Pese a ser la técnica con mayor
+# costo computacional, UMAP mantiene tanto la estructura local como la global, lo que la hace más últil para
+# representar datos con estructuras complejas como los que tenemos.
+```
 
 ### Clusterización
 
