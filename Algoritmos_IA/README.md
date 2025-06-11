@@ -22,3 +22,7 @@ Archivo .txt con la lista de variables (genes) estudiados en la base de datos.
 - ### gene_expression.csv
 
 Archivo .csv con la expresión de cada variable (columna) por cada observación (fila). No tiene etiquetas.
+
+- ### README.md
+
+Archivo actual en el que se detalla el contenido de la carpeta.
