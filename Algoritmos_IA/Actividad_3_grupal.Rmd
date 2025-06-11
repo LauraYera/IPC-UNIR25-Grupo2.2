@@ -152,7 +152,7 @@ tsne_plot
 # bien la estructura local de los puntos cercanos entre sí. Aún así, se puede observar algún punto desviado cercano 
 # a un grupo distinto al que realmente pertenece. Por esta razón, decidimos probar otra técnica no lineal como es
 # UMAP, que se usa cuando los datos son más complejos y que podrían ofrecer una representación distinta de la
-# estructura de mis datos. Además, con esta otra técnica se podría reforzar los patrones observados con t-SNE.
+# estructura de nuestros datos. Además, con esta otra técnica se podría reforzar los patrones observados con t-SNE.
 
 ```
 
@@ -187,7 +187,7 @@ umap_plot <- ggplot(umap.df, aes(x = X1, y = X2, color = data_filtered$Class)) +
 
 umap_plot
 
-# UMAP es una técnica de reducción de dimensionalidad que sume que las muestras están distribuidas de manera
+# UMAP es una técnica de reducción de dimensionalidad que asume que las muestras están distribuidas de manera
 # uniforme en un espacio topológico y que se puede aproximar a partir de estas muestras para proyectarlas en 
 # un espacio de menor dimensión. Al aplicar UMAP, se genera una visualización de dos dimensiones, donde podemos
 # observar claramente los 5 grupos correspondientes a los 5 tipos de cancer. Pese a ser la técnica con mayor
@@ -223,7 +223,8 @@ clusters_plot <- fviz_nbclust(df_scaled, kmeans, method = "wss") +
         plot.title=element_text(hjust=0.5))
 
 clusters_plot
-# Siguiendo la regla del codo (escoger el punto a partir del cual al curva se 
+
+# Siguiendo la regla del codo (escoger el punto a partir del cual la curva se 
 # allana), hemos decidido escoger k = 4 como el valor óptimo.
 
 set.seed(1999)
@@ -276,10 +277,37 @@ diana_plot
 # datos más sencilla.
 ```
 
-
 ## Implementación de métodos supervisados
 
+En esta parte, implementaremos tres métodos supervisados distintos para poder predecir una variable objetivo a partir de unos datos de entrada. Para ello debemos dividir nuestro dataframe en dos partes: una parte del dataframe para entrenar el modelo y otra parte para testear ese modelo.
+
 ### Filtrado de variables mediante LASSO/Ridge/Elastic Net
+
+En primer lugar, queremos ver si hay alguno de los genes de nuestra base de datos que importa menos, de esta manera podemos descartar aquellos menos importantes y que la base de datos esté más limpia de datos innecesarios. Para ello, utilizamos modelos lineales de regularización, que son básicamente como modelos de regresión. Hay 3 modelos:
+
+- Modelos Ridge: da un peso no nulo a todas las varibles (pero muy cercano para las que no aportan)
+- Modelos LASSO: da un peso nulo a las variables poco importantes
+- Modelos Elasticnet (mix): quita variables pero no muchas
+
+En nuestro caso utilizamos Ridge, para dar un peso no nulo pero muy cercano a 0 para las variables que no aportan mucha información pero sin eliminarlas, puesto que parto de pocas variables.
+
+```{r}
+genes <- names(data_filtered[1:476])
+
+# Preparar los datos para el modelo LASSO
+x <- as.matrix(data_filtered[, genes])
+y <- factor(data_filtered$Class)
+
+# Hiperparametro alpha (1 -> lasso)
+# family: multinomial porque tenemos 5 tipos de tumor
+
+set.seed(1999)
+lasso_model <- cv.glmnet(x, y, family = "multinomial", alpha = 1) 
+selected_genes <- coef(lasso_model, s = "lambda.min") # extraemos los coeficientes
+
+
+```
+
 
 ### Método 1
 
