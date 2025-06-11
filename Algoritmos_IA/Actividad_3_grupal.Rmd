@@ -1,18 +1,22 @@
 ---
 title: "Resolución Actividad 3 máster Bioinformática UNIR (2025)"
-author: Laura Yera Fernandez, Edurne García Vidal, Sergio Gil Peña, Ander López Imas,
-  Eva Coll Ripoll
+author: "Laura Yera Fernandez, Edurne García Vidal, Sergio Gil Peña, Ander López Imas"
 date: "2025-06-10"
-output: html_document
+output:
+  html_document:
+    theme:
+      bootswatch: flatly
+    toc: TRUE
+    toc_depth: 3
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-# Algoritmo e Inteligencia Artificial: Actividad 3 grupal
+# Algoritmos e Inteligencia Artificial: Actividad 3 grupal
 
-# Librerías
+## Librerías
 
 ```{r warning = FALSE, message = FALSE}
 rm(list=ls())
@@ -33,29 +37,30 @@ library(grDevices)
 library(randomForest)
 ```
 
-# Lectura y procesamiento de los datos
+## Lectura y procesamiento de los datos
 
 ```{r}
-setwd("~/Desktop/UNIR/1Q/Algoritmo_e_Inteligencia_Artificial/Actividad grupal")
+setwd("G:/PERSONAL/Edurne/MasterBioInformatica_UNIR/Asignaturas/1rSemestre_AlgoritmoseInteligenciaArtificial/Actividad3")
 
-genes.raw <- read.table("column_names.txt", quote = "\"", comment.char = "")
-colnames(genes.raw) <- c("Genes")
-length(genes.raw$Genes)
+genes.raw <- readLines("column_names.txt")
 
 labels.raw <- read.csv('classes.csv', header = FALSE, sep = ";")
 colnames(labels.raw) <- c("X","Class")
+labels.raw$Class <- as.factor(labels.raw$Class)
 
 data.raw <- read.csv('gene_expression.csv', header = FALSE, sep = ";")
-colnames(data.raw) <- c(genes.raw$Genes) #asumimos que la lista de genes corresponde ordenadamente a las columnas de los datos de la expresión de genes, si no quisieramos relacionarlo deberiamos escribir este código colnames(data.rawa) <- paste0("gene_", c(0:499))
-rownames(data.raw) <- c(labels.raw$X)
-
+colnames(data.raw) <- genes.raw 
+#asumimos que la lista de genes corresponde ordenadamente a las columnas de los datos de la expresión de genes, si no quisieramos relacionarlo deberiamos escribir este código colnames(data.raw) <- paste0("gene_", c(1:500))
+rownames(data.raw) <- labels.raw$X
 data.raw$Class <- labels.raw$Class
 ```
 
-##### Sanity check data
+## Sanity check data y imputación de datos faltantes
 
 ```{r}
-anyNA(data.raw) #Para decirme si hay NA o NaN (Not available o Not a number) en la data
+anyNA(data.raw) 
+#Vemos que no hay datos NA o NaN (Not available o Not a number) en la data, por 
+# lo que no nos hará falta imputar.
 
 any(data.raw[ , -ncol(data.raw)] == 0)
 zero_counts <- colSums(data.raw[ , -ncol(data.raw)] == 0)
@@ -74,11 +79,50 @@ ggplot(zero_df, aes(x = Variable, y = Zeros, fill = Variable)) +
   theme(legend.position = "none", 
         axis.text.x = element_blank())  # Oculta la leyenda
 
+
+# Vemos que hay genes que no tienen ceros, genes que tienen algún cero y genes que 
+# tienen muchísimos (>600). Estos últimos casos podrían deberse o a que el gen no se
+# expresa o a que hay un error de detección en la técnica. En cualquiera de los casos,
+# lo mejor sería simplemente eliminar dichas variables. 
+
+# Estableceremos la norma de eliminar aquellas variables con 75% o más de ceros.
+max_zeros <- 0.75*nrow(data.raw)
+
+table(zero_counts > max_zeros)
+genes_a_eliminar <- names(zero_counts[zero_counts > max_zeros])
+
+data_filtered <- data.raw %>%
+  select(-all_of(genes_a_eliminar))
+
+# También eliminaremos todos aquellos genes que tengan el mismo valor en todas
+# las observaciones (sd == 0) ya que no aportan ninguna información.
+
+data_filtered_sd <- sapply(data_filtered[, -ncol(data_filtered)], sd)
+anyNA(data_filtered_sd)
+table(data_filtered_sd == 0)
+
+# Todos son FALSE (y no hay ningun dato NA), asi que no hay ninguna variable con SD == 0.
+
 # Podemos hacer un diagrama de cajas para variable y vemos los estadísticos y outliers
-boxplot(data.raw[, 1:10], main = "Boxplot de los 10 primeros genes")
+boxplot(data_filtered[, 1:10], main = "Boxplot de los 10 primeros genes")
+
+# Sólo mirando los primeros genes, ya vemos que se mueven en ordenes distintos, 
+# por lo que lo más correcto sería escalar los datos para que puedan ser comparables.
+# Lo haremos directamente en los métodos de aprendizaje.
 ```
 
 
+## Implementación de métodos no supervisados
+
+### Reducción de dimensionalidad
+
+### Clusterización
+
+## Implementación de métodos supervisados
+
+### Filtrado de variables mediante LASSO/Ridge/Elastic Net
+
+## Preguntas de respuesta corta
 
 
 
