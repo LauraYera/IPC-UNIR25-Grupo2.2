@@ -327,6 +327,14 @@ colnames(selected_genes_HPB) <- "HPB"
 
 selected_genes_tipos <- cbind(selected_genes_AGH, selected_genes_CFB, selected_genes_CGC, selected_genes_CHC, selected_genes_HPB)
 
+# Eliminar la fila "(Intercept)" si no la necesitas
+selected_genes_tipos_no_intercept <- selected_genes_tipos[rownames(selected_genes_tipos) != "(Intercept)", ]
+
+# Filtrar genes con al menos un coeficiente distinto de 0
+genes_filtrados <- selected_genes_tipos_no_intercept[apply(selected_genes_tipos_no_intercept != 0, 1, any), ]
+genes_filtrados
+
+
 
 ```
 
