@@ -342,7 +342,15 @@ data <- data.raw %>% dplyr:: select(Class, names)
 
 write_csv(data, "~/Desktop/UNIR/1Q/Algoritmo_e_Inteligencia_Artificial/Actividad grupal/stata.csv")
 
+# Dividir el conjunto de datos en conjuntos de entrenamiento y prueba
 
+table(data$Class)
+
+set.seed(1999)
+trainIndex <- createDataPartition(data$Class, p = 0.8, list = FALSE)
+data$Class <- as.factor(data$Class) #importante para la prediccion (no regresion)
+trainData <- data[trainIndex,]
+testData <- data[-trainIndex,]
 ```
 
 
