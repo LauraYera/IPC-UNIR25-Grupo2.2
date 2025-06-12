@@ -324,6 +324,10 @@ colnames(selected_genes_CHC) <- "CHC"
 selected_genes_HPB <- as.matrix(selected_genes$HPB)
 selected_genes_HPB <- as.data.frame(selected_genes_HPB)
 colnames(selected_genes_HPB) <- "HPB"
+
+selected_genes_tipos <- cbind(selected_genes_AGH, selected_genes_CFB, selected_genes_CGC, selected_genes_CHC, selected_genes_HPB)
+
+
 ```
 
 
