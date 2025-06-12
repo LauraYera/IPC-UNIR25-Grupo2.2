@@ -334,6 +334,13 @@ selected_genes_tipos_no_intercept <- selected_genes_tipos[rownames(selected_gene
 genes_filtrados <- selected_genes_tipos_no_intercept[apply(selected_genes_tipos_no_intercept != 0, 1, any), ]
 genes_filtrados
 
+names <- rownames(genes_filtrados)
+names
+
+# Seleccionamos la variable a predecir (Class) y las variables relevantes (names)
+data <- data.raw %>% dplyr:: select(Class, names)
+
+write_csv(data, "~/Desktop/UNIR/1Q/Algoritmo_e_Inteligencia_Artificial/Actividad grupal/stata.csv")
 
 
 ```
