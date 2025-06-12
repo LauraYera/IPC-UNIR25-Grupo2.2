@@ -42,7 +42,7 @@ library(cluster)
 ## Lectura y procesamiento de los datos
 
 ```{r}
-setwd("G:/PERSONAL/Edurne/MasterBioInformatica_UNIR/Asignaturas/1rSemestre_AlgoritmoseInteligenciaArtificial/Actividad3")
+setwd("~/Desktop/UNIR/1Q/Algoritmo_e_Inteligencia_Artificial/Actividad grupal")
 
 genes.raw <- readLines("column_names.txt")
 
@@ -248,7 +248,6 @@ kmeans_plot
 # pequeños es cuando este método es más eficiente.
 ```
 
-
 #### Clusterización jerárquica: DIANA (Divisive Analysis Clustering)
 
 ```{r}
@@ -289,23 +288,42 @@ En primer lugar, queremos ver si hay alguno de los genes de nuestra base de dato
 - Modelos LASSO: da un peso nulo a las variables poco importantes
 - Modelos Elasticnet (mix): quita variables pero no muchas
 
-En nuestro caso utilizamos Ridge, para dar un peso no nulo pero muy cercano a 0 para las variables que no aportan mucha información pero sin eliminarlas, puesto que parto de pocas variables.
+En nuestro caso utilizamos Elasticnet, para quitar aquellos genes que sean menos importantes o con valor 0, pero solo los menos irrelevantes.
 
 ```{r}
 genes <- names(data_filtered[1:476])
+genes
 
-# Preparar los datos para el modelo LASSO
+# Preparar los datos para el modelo Elasticnet
 x <- as.matrix(data_filtered[, genes])
 y <- factor(data_filtered$Class)
 
-# Hiperparametro alpha (1 -> lasso)
+# Hiperparametro alpha (0-1 -> Elasticnet)
 # family: multinomial porque tenemos 5 tipos de tumor
 
 set.seed(1999)
-lasso_model <- cv.glmnet(x, y, family = "multinomial", alpha = 1) 
-selected_genes <- coef(lasso_model, s = "lambda.min") # extraemos los coeficientes
+Elasticnet_model <- cv.glmnet(x, y, family = "multinomial", alpha = 0.5) 
+selected_genes <- coef(Elasticnet_model, s = "lambda.min") # extraemos los coeficientes
 
+selected_genes_AGH <- as.matrix(selected_genes$AGH)
+selected_genes_AGH <- as.data.frame(selected_genes_AGH)
+colnames(selected_genes_AGH) <- "AGH"
 
+selected_genes_CFB <- as.matrix(selected_genes$CFB)
+selected_genes_CFB <- as.data.frame(selected_genes_CFB)
+colnames(selected_genes_CFB) <- "CFB"
+
+selected_genes_CGC <- as.matrix(selected_genes$CGC)
+selected_genes_CGC <- as.data.frame(selected_genes_CGC)
+colnames(selected_genes_CGC) <- "CGC"
+
+selected_genes_CHC <- as.matrix(selected_genes$CHC)
+selected_genes_CHC <- as.data.frame(selected_genes_CHC)
+colnames(selected_genes_CHC) <- "CHC"
+
+selected_genes_HPB <- as.matrix(selected_genes$HPB)
+selected_genes_HPB <- as.data.frame(selected_genes_HPB)
+colnames(selected_genes_HPB) <- "HPB"
 ```
 
 
