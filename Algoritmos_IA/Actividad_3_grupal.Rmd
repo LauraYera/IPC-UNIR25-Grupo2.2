@@ -121,7 +121,7 @@ A partir de métodos no supervisados reducimos la dimensionalidad de los datos, 
 transformar el conjunto de datos que tenemos de forma que se mantenga la información más relevante
 y se descarte la más redundante.
 
-Para ello, los dos métodos de reducción de dimensionalidad escogidos son: t-SNE y UMAP:
+Para ello, los dos métodos de reducción de dimensionalidad escogidos son: t-SNE y UMAP.
 
 #### t-SNE
 
@@ -353,14 +353,128 @@ trainData <- data[trainIndex,]
 testData <- data[-trainIndex,]
 ```
 
+### Modelo supervisado K-Nearest Neightbor (KNN)
 
-### Método 1
+En primer lugar escogemos el modelo K-Nearest Neighbor como primer modelo supervisado porque es un algoritmo bastante intuitivo, fácil de entender y aplicar.
+Este modelo, clasifica una variable en función de la mayoría de sus vecinos más cercanos, esto lo hace adecuado para este conjunto de datos que tenemos, puesto que tenemos un conjunto de expresión de genes que deben clasificarse en 5 tipos de tumores distintos según la expresión de esas variables.
 
-### Método 2
+```{r}
+# Para el modelo k-NN utilizamos el paquete caret
+# Usamos trainData para entrenar el modelo
+# Metodo de cross-validation (10 folds)
+# preProceso -> Escalado y centrado de los datos
+# tuneLength -> Probar con un vector de vecinos de longitud 30
 
-### Método 3
+set.seed(1999)
+knnModel <- train(Class ~ .,
+                  data = trainData,
+                  method = "knn",
+                  trControl = trainControl(method = "cv", number = 10),
+                  preProcess = c("center", "scale"),
+                  tuneLength = 30)
+knnModel
+plot(knnModel)
+```
+
+Para el modelo KNN se ha utilizado para entrenar el algoritmo, 642 observaciones, 196 variables centradas y escaladas y una repeticion de 10 particiones. El objetivo de este algoritmo es predecir el tipo de tumor (AGH, CFB, CGC, CHC, HPB), a partir de la expresión de genes teniendo en cuenta el algoritmo entrenado. Como resultado, tenemos que el modelo muestra su mejor resultado cuando k=9, es decir, cuando tiene en cuenta los 9 vecinos más cercanos para clasificar un nuevo resultado. Además, en k=9 se obtiene el mayor valor de precisión del algoritmo, siendo un valor de 0,9984127, indicando una precisión muy alta para poder clasificar los tumores en alguna de las 5 clases.
+
+```{r}
+# Realizar predicciones en el conjunto de prueba utilizando el modelo entrenado
+predictions <- predict(knnModel, newdata = testData )
+predictions
+
+# Evaluar la precisión del modelo utilizando la matriz de confusión)
+confusionMatrix(predictions, testData$Class)
+
+# Obtener probabilidades de las clases (como de probable es que un paciente se clasifique en la clase AGH, CFB, CGC, CHC y HPB)
+table(testData$Class)
+probabilities_knn <- predict(knnModel, newdata = testData, type = "prob")
+probabilities_knn # Sacamos las probabilidades para generar las curvas PR Curves
+```
+
+Probando el modelo entrenado con el conjunto de datos de prueba (testData), en el cual queremos predecir que tipo de tumor clasifica para cada paciente teniendo en cuenta la expresión de genes de cada uno, vemos que el modelo acertó en la predicción en un 99,37% de los casos, siendo el valor de precisión de un 0,9937. Además, el valor kappa, es de un 0,9917 indicando que es un modelo sólido y fiable. En relación al resultado de la predicción, vemos que se han clasificado correctamente todas las clases de tumores menos una muestra de la clase AGH, que se predijo como CFB.
+En relación a las métricas más importantes del modelo, queremos destacar que se ha obtenido una sensibilidad alta del modelo para todas las clases de tumores, siendo la clase AGH la más baja con un 96,55%, aún así consideramos que es una sensibilidad muy buena. También destacar la especificidad alta del modelo para todas las clases, siendo la más baja la clase CFB con un 98,99% que aún así consideramos que es una especificidad alta. 
+Después de calcular las probabilidades por clase de tumor, vemos que esas probabilidad son muy poco realistas puesto que tienen poca variabilidad, siendo la predicción en algunos casos del 100% para un tipo de tumor en algunos pacientes. Es por ello, que decidimos implementar otro modelo supervisado, para intentar obtener una predicción aun mejor.
+
+### Modelo supervisado SMV (Support Vector Machine)
+
+- Crear un modelo de SVM tipo kernel utilizando el paquete caret
+- No hace falta tunear el parámetro C "cost" 
+- Saca hiperparametro C e hiperparámetro sigma
+
+```{r}
+set.seed(1999)
+svmModelKernel <- train(Class ~.,
+                        data = trainData,
+                        method = "svmRadial",
+                        trControl = trainControl(method = "cv", number = 10),
+                        preProcess = c("center", "scale"),
+                        tuneLength = 10,
+                        prob.model = TRUE) 
+svmModelKernel
+plot(svmModelKernel)
+```
+
+Para este modelo se ha utilizado la misma trainData, con 10 particiones diferentes y el mejor rendimiento se ha obtenido en C=2, obteniendo un valor de precisión de 0.8975509, esto nos indica que el modelo es bueno para predecir el tipo de tumor, aunque no mejor que el modelo anterior.
+
+```{r}
+# Realizar predicciones en el conjunto de prueba utilizando el modelo entrenado
+predictions <- predict(svmModelKernel, newdata = testData )
+predictions
+
+# Evaluar la precisión del modelo utilizando la matriz de confusión
+confusionMatrix(predictions, testData$Class)
+
+# SVM kernel
+probabilities_svm_kernel <- predict(svmModelKernel, newdata = testData, type = "prob")
+probabilities_svm_kernel
+```
+
+Probando este otro modelo entrenado con el conjunto de datos de prueba, vemos que la clasificación de los tumores según los pacientes pese a no ser mejor que el modelo anterior, nos da un valor de precisión alto con un 90,57%. Vemos que en este modelo obtenemos más errores de clasificación que en el anterior, confundiendo varias muestras de CHC como CGC. Esto podría deberse, a que si nos fijamos en las métricas más importantes de este nuevo modelo, la sensibilidad al modelo se ve reducida en la clase CHC, de ahí que hayan tantos errores de clasificación en esta clase de tumor. 
+Destacar que las probabilidades que me da este modelo son más coherentes e incluso tienen más variabilidad que el modelo anterior.
+Seguidamente, probaremos con otro modelo supervisado para poder comparar los tres modelos con las PR Curves y decidir cual de todos finalmente es el mejor.
+
+### Modelo supervisado Decission Tree (DT)
+
+```{r}
+set.seed(1999)
+dtModel <- train(Class ~.,
+                 data = trainData,
+                 method = "rpart",
+                 trControl = trainControl(method = "cv", number = 10),
+                 preProcess = c("center", "scale"),
+                 tuneLength = 10)
+dtModel
+plot(dtModel)
+
+# Plot de las decisiones del arbol generado
+fancyRpartPlot(dtModel$finalModel, type=4)
+```
+
+Para este modelo de Decission Tree, se ha utilizado la misma trainData y con 10 particiones de conjuntos de entrenamiento diferentes. El mejor rendimiento se ha obtenido en cp=0, que es el parámetro que mide la complejidad del árbol. Obtenemos pues, que en cp=0, se da el mejor resultado de accuracy siendo un 91,25% de precisión y un valor de kappa de 0,8845, indicando que el modelo es bueno y no predice la clasificación al azar.
+Finalmente, a partir del plot del árbol generado de este modelo, vemos que el primer gen que clasifica los tipos de tumores, es el ATP5PD, si este gen tiene valores superiores o igual a 0,93, significa que el tumor se clasifica en la clase AGH con un 18%. Por otra parte, si en cambio ese valor es inferior, el tumor en primera instancia se clasificaría en la clase CFB con un 82% de probabilidades, pero después teniendo en cuenta la expresión del gen PDE6D, se podría clasificar otra vez en las clases CFB y CGC.
+
+```{r}
+# Evaluar el modelo con el conjunto de prueba
+predictions_raw <- predict(dtModel, newdata = testData, type = "raw") # raw = clases
+predictions_raw
+
+# Evaluar la precisión del modelo utilizando la matriz de confusión
+confusionMatrix(predictions_raw, testData$Class)
+
+# Obtener probabilidades
+probabilities_dt <- predict(dtModel, newdata = testData, type = "prob")
+probabilities_dt
+```
+
+Probando este último modelo entrenado con el conjunto de datos de prueba, vemos que la clasificación de los tumores tiene un valor de precisión de 87,42%, hasta ahora vemos que ha sido el modelo con un valor de precisión más bajo a diferencia de los otros. Además, en relación a las métricas más importantes de este nuevo modelo, vemos que la sensibilidad al modelo se ve reducida en todos los tipos de tumores menos en CHC que tiene un 100%. La especificidad en cambio, si que se ha visto reducida en todos los tipos de tumores, aún así siguen teniendo valores altos. 
 
 ### Curvas ROC/PR?
+
+```{r}
+table(data$Class)
+
+```
 
 ## Preguntas de respuesta corta
 
