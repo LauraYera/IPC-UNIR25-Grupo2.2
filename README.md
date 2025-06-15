@@ -33,6 +33,6 @@ Archivo .Rmd con las respuestas para la actividad 3 de Estadística y R.
 
 Archivo word con las tablas y el informe de la actividad 3.
 
-- # Estadística_Actividad3_Grupo2.2.html
+- ### Estadística_Actividad3_Grupo2.2.html
 
 Archivo .html con el "knit" del documento .Rmd.
