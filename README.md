@@ -23,4 +23,4 @@ Carpeta con los archivos de la actividad grupal de Secuenciación y Ómicas (pen
 
 - ## Algoritmos_IA
   
-Carpeta con los archivos de la actividad grupal de Algoritmos e Inteligencia Artificial (pendiente de hacer). 
+Carpeta con los archivos de la actividad grupal de Algoritmos e Inteligencia Artificial. 
