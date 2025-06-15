@@ -41,7 +41,7 @@ Archivo word con las tablas y el informe de la actividad 3.
 
 Archivo .html con el "knit" del documento .Rmd.
 
-- ### Secuenciaión_Ómicas
+- ### Secuenciación_Ómicas
   
 Carpeta con los archivos de la actividad grupal de Secuenciación y Ómicas (pendiente de hacer). 
 
