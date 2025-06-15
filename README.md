@@ -17,10 +17,6 @@ Archivo actual en el que vamos a explicar los contenidos del repositorio.
   
 Carpeta con los archivos de la actividad 3 grupal de Estadística y R.
 
-- ## Secuenciación_Ómicas
-  
-Carpeta con los archivos de la actividad grupal de Secuenciación y Ómicas (pendiente de hacer). 
-
 - ## Algoritmos_IA
   
 Carpeta con los archivos de la actividad grupal de Algoritmos e Inteligencia Artificial. 
