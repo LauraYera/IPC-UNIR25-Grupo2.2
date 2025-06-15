@@ -1,4 +1,7 @@
-La siguiente carpeta contiene:
+# Tabla de contenido de la carpeta "Estadística_y_R"
+
+En esta carpeta añadiremos los documentos necesarios para hacer la actividad grupal de la asignatura "Estadística_y_R".
+A continuación se detallan los documentos presentes y una explicación de los mismos.
 
 - #### mubio02_act3.docx
   
