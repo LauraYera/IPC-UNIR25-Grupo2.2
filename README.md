@@ -5,7 +5,7 @@ Aprovecharemos para añadir en este repositorio todos los archivos de la activid
 
 *Explicación de los archivos subidos:*
 
-- #### LICENSE
+- ### LICENSE
   
 Contiene el tipo de licencia de nuestro repositorio (MIT).
 
@@ -13,26 +13,38 @@ Contiene el tipo de licencia de nuestro repositorio (MIT).
   
 Archivo actual en el que vamos a explicar los contenidos del repositorio.
 
-- ### mubio02_act3.docx
+- ### Estadística_y_R
+  
+Carpeta con los archivos de la actividad 3 grupal de Estadística y R.
+
+- #### mubio02_act3.docx
   
 Hoja enunciado de la actividad 3 grupal de la asignatura de Estadística y R.
 
-- ### Dataset expresión genes.csv
+- #### Dataset expresión genes.csv
   
 Archivo .csv con el dataset necesario para la actividad.
 
-- ### UNIR25_Grupo2_2.ipynb
+- #### UNIR25_Grupo2_2.ipynb
   
 Archivo de google colab en el que compartiremos nuestros códigos de RStudio para poder hacer el ejercicio de forma colaborativa.
 
-- ### Estadística_Actividad3_Grupo2.2.Rmd
+- #### Estadística_Actividad3_Grupo2.2.Rmd
   
 Archivo .Rmd con las respuestas para la actividad 3 de Estadística y R.
 
-- ### Actividad3_Grupo2.2_TablaseInforme.docx
+- #### Actividad3_Grupo2.2_TablaseInforme.docx
 
 Archivo word con las tablas y el informe de la actividad 3.
 
-- ### Estadística_Actividad3_Grupo2.2.html
+- #### Estadística_Actividad3_Grupo2.2.html
 
 Archivo .html con el "knit" del documento .Rmd.
+
+- ### Secuenciaión_Ómicas
+  
+Carpeta con los archivos de la actividad grupal de Secuenciación y Ómicas (pendiente de hacer). 
+
+- ### Algoritmos_IA
+  
+Carpeta con los archivos de la actividad grupal de Algoritmos e Inteligencia Artificial (pendiente de hacer). 
