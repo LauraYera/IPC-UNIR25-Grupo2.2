@@ -5,15 +5,15 @@ Aprovecharemos para añadir en este repositorio todos los archivos de la activid
 
 *Explicación de los archivos subidos:*
 
-- ### LICENSE
+- ## LICENSE
   
 Contiene el tipo de licencia de nuestro repositorio (MIT).
 
-- ### README.md
+- ## README.md
   
 Archivo actual en el que vamos a explicar los contenidos del repositorio.
 
-- ### Estadística_y_R
+- ## Estadística_y_R
   
 Carpeta con los archivos de la actividad 3 grupal de Estadística y R.
 
@@ -41,10 +41,10 @@ Archivo word con las tablas y el informe de la actividad 3.
 
 Archivo .html con el "knit" del documento .Rmd.
 
-- ### Secuenciación_Ómicas
+- ## Secuenciación_Ómicas
   
 Carpeta con los archivos de la actividad grupal de Secuenciación y Ómicas (pendiente de hacer). 
 
-- ### Algoritmos_IA
+- ## Algoritmos_IA
   
 Carpeta con los archivos de la actividad grupal de Algoritmos e Inteligencia Artificial (pendiente de hacer). 
