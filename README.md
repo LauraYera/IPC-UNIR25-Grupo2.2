@@ -5,7 +5,7 @@ Aprovecharemos para añadir en este repositorio todos los archivos de la activid
 
 *Explicación de los archivos subidos:*
 
-- ### LICENSE
+- #### LICENSE
   
 Contiene el tipo de licencia de nuestro repositorio (MIT).
 
