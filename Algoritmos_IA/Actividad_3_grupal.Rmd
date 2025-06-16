@@ -1,0 +1,483 @@
+---
+title: "Resolución Actividad 3 máster Bioinformática UNIR (2025)"
+author: "Laura Yera Fernandez, Edurne García Vidal, Sergio Gil Peña, Ander López Imas"
+date: "2025-06-10"
+output:
+  html_document:
+    theme:
+      bootswatch: flatly
+    toc: TRUE
+    toc_depth: 4
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Algoritmos e Inteligencia Artificial: Actividad 3 grupal
+
+## Librerías
+
+```{r warning = FALSE, message = FALSE}
+rm(list=ls())
+library(ggplot2)
+library(stats)
+library(Rtsne)
+library(RDRToolbox)
+library(uwot)
+library(glmnet)
+library(tidyverse)
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(rattle)
+library(PRROC)
+library(gridExtra)
+library(grDevices)
+library(randomForest)
+library(factoextra)
+library(cluster)
+```
+
+## Lectura y procesamiento de los datos
+
+```{r}
+setwd("~/Desktop/UNIR/1Q/Algoritmo_e_Inteligencia_Artificial/Actividad grupal")
+
+genes.raw <- readLines("column_names.txt")
+
+labels.raw <- read.csv('classes.csv', header = FALSE, sep = ";")
+colnames(labels.raw) <- c("X","Class")
+labels.raw$Class <- as.factor(labels.raw$Class)
+
+data.raw <- read.csv('gene_expression.csv', header = FALSE, sep = ";")
+colnames(data.raw) <- genes.raw 
+#asumimos que la lista de genes corresponde ordenadamente a las columnas de los datos de la expresión de genes, si no quisieramos relacionarlo deberiamos escribir este código colnames(data.raw) <- paste0("gene_", c(1:500))
+rownames(data.raw) <- labels.raw$X
+data.raw$Class <- labels.raw$Class
+```
+
+## Sanity check data e imputación de datos faltantes
+
+```{r}
+anyNA(data.raw) 
+#Vemos que no hay datos NA o NaN (Not available o Not a number) en la data, por 
+#lo que no nos hará falta imputar.
+
+any(data.raw[ , -ncol(data.raw)] == 0)
+zero_counts <- colSums(data.raw[ , -ncol(data.raw)] == 0)
+zero_counts
+
+zero_df <- data.frame(
+  Variable = names(zero_counts),
+  Zeros = as.numeric(zero_counts)
+)
+ggplot(zero_df, aes(x = Variable, y = Zeros, fill = Variable)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Cantidad de ceros por columna",
+       x = "Variable",
+       y = "Número de ceros") +
+  theme_minimal() +
+  theme(legend.position = "none", 
+        axis.text.x = element_blank())  # Oculta la leyenda
+
+
+# Vemos que hay genes que no tienen ceros, genes que tienen algún cero y genes que 
+# tienen muchísimos (>600). Estos últimos casos podrían deberse o a que el gen no se
+# expresa o a que hay un error de detección en la técnica. En cualquiera de los casos,
+# lo mejor sería simplemente eliminar dichas variables. 
+
+# Estableceremos la norma de eliminar aquellas variables con 75% o más de ceros.
+max_zeros <- 0.75*nrow(data.raw)
+
+table(zero_counts > max_zeros)
+genes_a_eliminar <- names(zero_counts[zero_counts > max_zeros])
+
+data_filtered <- data.raw %>%
+  select(-all_of(genes_a_eliminar))
+
+# También eliminaremos todos aquellos genes que tengan el mismo valor en todas
+# las observaciones (sd == 0) ya que no aportan ninguna información.
+
+data_filtered_sd <- sapply(data_filtered[, -ncol(data_filtered)], sd)
+anyNA(data_filtered_sd)
+table(data_filtered_sd == 0)
+
+# Todos son FALSE (y no hay ningun dato NA), asi que no hay ninguna variable con SD == 0.
+
+# Podemos hacer un diagrama de cajas para variable y vemos los estadísticos y outliers
+boxplot(data_filtered[, 1:10], main = "Boxplot de los 10 primeros genes")
+
+# Sólo mirando los primeros genes, ya vemos que se mueven en ordenes distintos, 
+# por lo que lo más correcto sería escalar los datos para que puedan ser comparables.
+# Si decidimos hacerlo, lo haremos directamente en los métodos de aprendizaje.
+```
+
+## Implementación de métodos no supervisados
+
+### Reducción de dimensionalidad
+
+A partir de métodos no supervisados reducimos la dimensionalidad de los datos, que consiste en 
+transformar el conjunto de datos que tenemos de forma que se mantenga la información más relevante
+y se descarte la más redundante.
+
+Para ello, los dos métodos de reducción de dimensionalidad escogidos son: t-SNE y UMAP.
+
+#### t-SNE
+
+```{r}
+# Seteamos la semilla para que sea replicable el algoritmo
+set.seed(1999)
+
+#Guardar en un dataframe los genes
+df <- sapply(data_filtered[1:476], as.numeric)
+
+tsne <- Rtsne(X = df, dims = 2)
+tsne_result <- data.frame(tsne$Y)
+
+# Graficamos
+tsne_plot <- ggplot(tsne_result, aes(x = X1, y = X2, color = data_filtered$Class)) +
+  geom_point(size = 2) +
+  scale_color_manual(values = c("red", "blue", "green", "orange", "purple")) +
+  labs(title = "Reducción de dimensionalidad - t-SNE", x = "Dim 1", y = "Dim 2", color = "Tipos de cancer") +
+  theme_classic() +
+  theme(panel.grid.major = element_line(color = "gray90"),
+        panel.grid.minor = element_blank(),
+        panel.background = element_rect(fill = "gray95"),
+        plot.title=element_text(hjust=0.5))
+
+tsne_plot
+
+# A partir del método no supervisado anterior (t-SNE) se ha mostrado una buena separación de los grupos, manteniendo
+# bien la estructura local de los puntos cercanos entre sí. Aún así, se puede observar algún punto desviado cercano 
+# a un grupo distinto al que realmente pertenece. Por esta razón, decidimos probar otra técnica no lineal como es
+# UMAP, que se usa cuando los datos son más complejos y que podrían ofrecer una representación distinta de la
+# estructura de nuestros datos. Además, con esta otra técnica se podría reforzar los patrones observados con t-SNE.
+
+```
+
+#### UMAP
+
+```{r}
+# Seteamos la semilla para que sea replicable el algoritmo
+set.seed(1999)
+
+# Usamos el mismo dataframe (df) de los genes 
+umap.results <- umap(df, 
+                     n_neighbors = 0.1*nrow(df),
+                     n_components = 2,
+                     min_dist = 0.2,
+                     local_connectivity=1,
+                     ret_model = TRUE,
+                     verbose = FALSE,
+                     scale = FALSE)
+
+umap.df <- data.frame(umap.results$embedding)
+
+# Graficamos
+umap_plot <- ggplot(umap.df, aes(x = X1, y = X2, color = data_filtered$Class)) +
+  geom_point(size = 2) +
+  scale_color_manual(values = c("red", "blue", "green", "orange", "purple")) +
+  labs(title = "Reducción de dimensionalidad - UMAP", x = "Dimension1", y = "Dimension2", color = "Tipos de cancer") +
+  theme_classic() +
+  theme(panel.grid.major = element_line(color = "gray90"),
+        panel.grid.minor = element_blank(),
+        panel.background = element_rect(fill = "gray95"),
+        plot.title=element_text(hjust=0.5))
+
+umap_plot
+
+# UMAP es una técnica de reducción de dimensionalidad que asume que las muestras están distribuidas de manera
+# uniforme en un espacio topológico y que se puede aproximar a partir de estas muestras para proyectarlas en 
+# un espacio de menor dimensión. Al aplicar UMAP, se genera una visualización de dos dimensiones, donde podemos
+# observar claramente los 5 grupos correspondientes a los 5 tipos de cancer. Pese a ser la técnica con mayor
+# costo computacional, UMAP mantiene tanto la estructura local como la global, lo que la hace más últil para
+# representar datos con estructuras complejas como los que tenemos.
+# A pesar de ello, seguimos viendo algún punto verde (CGC) muy cerca a otros grupos (HPB y CFB), así como algún
+# punto rojo que al parecer se parece mucho al cluster de CFB.
+```
+
+### Clusterización
+
+Con los métodos de clusterización, lo que buscamos es crear subgrupos dentro de nuestras
+muestras, de modo que aquellas más similares se juntaran. En esta asignatura hemos estudiado
+dos tipos de métodos de clusterización: jerárquicos y no jerárquicos. Probaremos uno
+de cada tipo.
+
+#### Clusterización no jerárquica: método K-means
+
+```{r}
+# En el método K-means deberemos ajustar el número de centroides (k), para ello
+# vamos primero a identificar cual es el número óptimo para nuestros datos.
+# Pero antes aplicaremos un escalado a nuestros datos, ya que k-means usa distancias
+# euclidianas.
+
+df_scaled <- scale(df)
+
+clusters_plot <- fviz_nbclust(df_scaled, kmeans, method = "wss") +
+  ggtitle("Número óptimo de clusters") +
+  theme_classic() +
+  theme(panel.grid.major = element_line(color = "gray90"),
+        panel.grid.minor = element_blank(),
+        panel.background = element_rect(fill = "gray95"),
+        plot.title=element_text(hjust=0.5))
+
+clusters_plot
+
+# Siguiendo la regla del codo (escoger el punto a partir del cual la curva se 
+# allana), hemos decidido escoger k = 4 como el valor óptimo.
+
+set.seed(1999)
+kmeans.result <- kmeans(df_scaled,
+                        centers = 4,
+                        iter.max = 100,
+                        nstart = 50)
+
+kmeans_plot <- fviz_cluster(kmeans.result, df_scaled) +
+  ggtitle("Clusterización K-means (4 clusters)") +
+  theme(panel.grid.major = element_line(color = "gray90"),
+        panel.grid.minor = element_blank(),
+        panel.background = element_rect(fill = "gray95"),
+        plot.title=element_text(hjust=0.5))
+
+kmeans_plot
+
+# A pesar de escalar datos y modificar el número de veces que se reinicia el algoritmo,
+# sólo podemos separar un grupo, mientras que los otros tres clusters quedan muy pegados.
+# Esto puede deberse a que nuestro dataset no es especialmente pequeño, y con datos
+# pequeños es cuando este método es más eficiente.
+```
+
+#### Clusterización jerárquica: DIANA (Divisive Analysis Clustering)
+
+```{r}
+# Para este método también usaremos los datos escalados (como ya lo hemos hecho
+# de antemano, usaremos stand = FALSE)
+
+diana.results.euclidean <- diana(df_scaled, stand = FALSE, metric = "euclidean")
+diana.results.manhattan <- diana(df_scaled, stand = FALSE, metric = "manhattan")
+
+# Hemos probado ambas metricas y nos ha gustado más el resultado con manhattan:
+diana_plot <- fviz_dend(diana.results.manhattan, cex = 0, k = 5,
+                        palette = c("red", "blue", "green", "purple", "orange"),
+                        main = "DIANA (Divisive Analysis Clustering) - Manhattan",
+                        xlab = "Índice de Observaciones",
+                        ylab = "Distancia") +
+  theme(panel.grid.major = element_line(color = "gray90"),
+        panel.grid.minor = element_blank(),
+        panel.background = element_rect(fill = "gray95"),
+        plot.title=element_text(hjust=0.5))
+
+diana_plot
+
+# Hemos decidido usar un k = 5, por si coincidia con el número de grupos de nuestra
+# base de datos, pero no parece que coincidan (uno de los grupos parece que tiene solo como observaciones).
+# Tal vez se debería hacer una reducción de dimensionalidad previa, o trabajar con una base de
+# datos más sencilla.
+```
+
+## Implementación de métodos supervisados
+
+En esta parte, implementaremos tres métodos supervisados distintos para poder predecir una variable objetivo a partir de unos datos de entrada. Para ello debemos dividir nuestro dataframe en dos partes: una parte del dataframe para entrenar el modelo y otra parte para testear ese modelo.
+
+### Filtrado de variables mediante LASSO/Ridge/Elastic Net
+
+En primer lugar, queremos ver si hay alguno de los genes de nuestra base de datos que importa menos, de esta manera podemos descartar aquellos menos importantes y que la base de datos esté más limpia de datos innecesarios. Para ello, utilizamos modelos lineales de regularización, que son básicamente como modelos de regresión. Hay 3 modelos:
+
+- Modelos Ridge: da un peso no nulo a todas las varibles (pero muy cercano para las que no aportan)
+- Modelos LASSO: da un peso nulo a las variables poco importantes
+- Modelos Elasticnet (mix): quita variables pero no muchas
+
+En nuestro caso utilizamos Elasticnet, para quitar aquellos genes que sean menos importantes o con valor 0, pero solo los menos irrelevantes.
+
+```{r}
+genes <- names(data_filtered[1:476])
+genes
+
+# Preparar los datos para el modelo Elasticnet
+x <- as.matrix(data_filtered[, genes])
+y <- factor(data_filtered$Class)
+
+# Hiperparametro alpha (0-1 -> Elasticnet)
+# family: multinomial porque tenemos 5 tipos de tumor
+
+set.seed(1999)
+Elasticnet_model <- cv.glmnet(x, y, family = "multinomial", alpha = 0.5) 
+selected_genes <- coef(Elasticnet_model, s = "lambda.min") # extraemos los coeficientes
+
+selected_genes_AGH <- as.matrix(selected_genes$AGH)
+selected_genes_AGH <- as.data.frame(selected_genes_AGH)
+colnames(selected_genes_AGH) <- "AGH"
+
+selected_genes_CFB <- as.matrix(selected_genes$CFB)
+selected_genes_CFB <- as.data.frame(selected_genes_CFB)
+colnames(selected_genes_CFB) <- "CFB"
+
+selected_genes_CGC <- as.matrix(selected_genes$CGC)
+selected_genes_CGC <- as.data.frame(selected_genes_CGC)
+colnames(selected_genes_CGC) <- "CGC"
+
+selected_genes_CHC <- as.matrix(selected_genes$CHC)
+selected_genes_CHC <- as.data.frame(selected_genes_CHC)
+colnames(selected_genes_CHC) <- "CHC"
+
+selected_genes_HPB <- as.matrix(selected_genes$HPB)
+selected_genes_HPB <- as.data.frame(selected_genes_HPB)
+colnames(selected_genes_HPB) <- "HPB"
+
+selected_genes_tipos <- cbind(selected_genes_AGH, selected_genes_CFB, selected_genes_CGC, selected_genes_CHC, selected_genes_HPB)
+
+# Eliminar la fila "(Intercept)" si no la necesitas
+selected_genes_tipos_no_intercept <- selected_genes_tipos[rownames(selected_genes_tipos) != "(Intercept)", ]
+
+# Filtrar genes con al menos un coeficiente distinto de 0
+genes_filtrados <- selected_genes_tipos_no_intercept[apply(selected_genes_tipos_no_intercept != 0, 1, any), ]
+genes_filtrados
+
+names <- rownames(genes_filtrados)
+names
+
+# Seleccionamos la variable a predecir (Class) y las variables relevantes (names)
+data <- data.raw %>% dplyr:: select(Class, names)
+
+write_csv(data, "~/Desktop/UNIR/1Q/Algoritmo_e_Inteligencia_Artificial/Actividad grupal/stata.csv")
+
+# Dividir el conjunto de datos en conjuntos de entrenamiento y prueba
+
+table(data$Class)
+
+set.seed(1999)
+trainIndex <- createDataPartition(data$Class, p = 0.8, list = FALSE)
+data$Class <- as.factor(data$Class) #importante para la prediccion (no regresion)
+trainData <- data[trainIndex,]
+testData <- data[-trainIndex,]
+```
+
+### Modelo supervisado K-Nearest Neightbor (KNN)
+
+En primer lugar escogemos el modelo K-Nearest Neighbor como primer modelo supervisado porque es un algoritmo bastante intuitivo, fácil de entender y aplicar.
+Este modelo, clasifica una variable en función de la mayoría de sus vecinos más cercanos, esto lo hace adecuado para este conjunto de datos que tenemos, puesto que tenemos un conjunto de expresión de genes que deben clasificarse en 5 tipos de tumores distintos según la expresión de esas variables.
+
+```{r}
+# Para el modelo k-NN utilizamos el paquete caret
+# Usamos trainData para entrenar el modelo
+# Metodo de cross-validation (10 folds)
+# preProceso -> Escalado y centrado de los datos
+# tuneLength -> Probar con un vector de vecinos de longitud 30
+
+set.seed(1999)
+knnModel <- train(Class ~ .,
+                  data = trainData,
+                  method = "knn",
+                  trControl = trainControl(method = "cv", number = 10),
+                  preProcess = c("center", "scale"),
+                  tuneLength = 30)
+knnModel
+plot(knnModel)
+```
+
+Para el modelo KNN se ha utilizado para entrenar el algoritmo, 642 observaciones, 196 variables centradas y escaladas y una repeticion de 10 particiones. El objetivo de este algoritmo es predecir el tipo de tumor (AGH, CFB, CGC, CHC, HPB), a partir de la expresión de genes teniendo en cuenta el algoritmo entrenado. Como resultado, tenemos que el modelo muestra su mejor resultado cuando k=9, es decir, cuando tiene en cuenta los 9 vecinos más cercanos para clasificar un nuevo resultado. Además, en k=9 se obtiene el mayor valor de precisión del algoritmo, siendo un valor de 0,9984127, indicando una precisión muy alta para poder clasificar los tumores en alguna de las 5 clases.
+
+```{r}
+# Realizar predicciones en el conjunto de prueba utilizando el modelo entrenado
+predictions <- predict(knnModel, newdata = testData )
+predictions
+
+# Evaluar la precisión del modelo utilizando la matriz de confusión)
+confusionMatrix(predictions, testData$Class)
+
+# Obtener probabilidades de las clases (como de probable es que un paciente se clasifique en la clase AGH, CFB, CGC, CHC y HPB)
+table(testData$Class)
+probabilities_knn <- predict(knnModel, newdata = testData, type = "prob")
+probabilities_knn # Sacamos las probabilidades para generar las curvas PR Curves
+```
+
+Probando el modelo entrenado con el conjunto de datos de prueba (testData), en el cual queremos predecir que tipo de tumor clasifica para cada paciente teniendo en cuenta la expresión de genes de cada uno, vemos que el modelo acertó en la predicción en un 99,37% de los casos, siendo el valor de precisión de un 0,9937. Además, el valor kappa, es de un 0,9917 indicando que es un modelo sólido y fiable. En relación al resultado de la predicción, vemos que se han clasificado correctamente todas las clases de tumores menos una muestra de la clase AGH, que se predijo como CFB.
+En relación a las métricas más importantes del modelo, queremos destacar que se ha obtenido una sensibilidad alta del modelo para todas las clases de tumores, siendo la clase AGH la más baja con un 96,55%, aún así consideramos que es una sensibilidad muy buena. También destacar la especificidad alta del modelo para todas las clases, siendo la más baja la clase CFB con un 98,99% que aún así consideramos que es una especificidad alta. 
+Después de calcular las probabilidades por clase de tumor, vemos que esas probabilidad son muy poco realistas puesto que tienen poca variabilidad, siendo la predicción en algunos casos del 100% para un tipo de tumor en algunos pacientes. Es por ello, que decidimos implementar otro modelo supervisado, para intentar obtener una predicción aun mejor.
+
+### Modelo supervisado SMV (Support Vector Machine)
+
+- Crear un modelo de SVM tipo kernel utilizando el paquete caret
+- No hace falta tunear el parámetro C "cost" 
+- Saca hiperparametro C e hiperparámetro sigma
+
+```{r}
+set.seed(1999)
+svmModelKernel <- train(Class ~.,
+                        data = trainData,
+                        method = "svmRadial",
+                        trControl = trainControl(method = "cv", number = 10),
+                        preProcess = c("center", "scale"),
+                        tuneLength = 10,
+                        prob.model = TRUE) 
+svmModelKernel
+plot(svmModelKernel)
+```
+
+Para este modelo se ha utilizado la misma trainData, con 10 particiones diferentes y el mejor rendimiento se ha obtenido en C=2, obteniendo un valor de precisión de 0.8975509, esto nos indica que el modelo es bueno para predecir el tipo de tumor, aunque no mejor que el modelo anterior.
+
+```{r}
+# Realizar predicciones en el conjunto de prueba utilizando el modelo entrenado
+predictions <- predict(svmModelKernel, newdata = testData )
+predictions
+
+# Evaluar la precisión del modelo utilizando la matriz de confusión
+confusionMatrix(predictions, testData$Class)
+
+# SVM kernel
+probabilities_svm_kernel <- predict(svmModelKernel, newdata = testData, type = "prob")
+probabilities_svm_kernel
+```
+
+Probando este otro modelo entrenado con el conjunto de datos de prueba, vemos que la clasificación de los tumores según los pacientes pese a no ser mejor que el modelo anterior, nos da un valor de precisión alto con un 90,57%. Vemos que en este modelo obtenemos más errores de clasificación que en el anterior, confundiendo varias muestras de CHC como CGC. Esto podría deberse, a que si nos fijamos en las métricas más importantes de este nuevo modelo, la sensibilidad al modelo se ve reducida en la clase CHC, de ahí que hayan tantos errores de clasificación en esta clase de tumor. 
+Destacar que las probabilidades que me da este modelo son más coherentes e incluso tienen más variabilidad que el modelo anterior.
+Seguidamente, probaremos con otro modelo supervisado para poder comparar los tres modelos con las PR Curves y decidir cual de todos finalmente es el mejor.
+
+### Modelo supervisado Decission Tree (DT)
+
+```{r}
+set.seed(1999)
+dtModel <- train(Class ~.,
+                 data = trainData,
+                 method = "rpart",
+                 trControl = trainControl(method = "cv", number = 10),
+                 preProcess = c("center", "scale"),
+                 tuneLength = 10)
+dtModel
+plot(dtModel)
+
+# Plot de las decisiones del arbol generado
+fancyRpartPlot(dtModel$finalModel, type=4)
+```
+
+Para este modelo de Decission Tree, se ha utilizado la misma trainData y con 10 particiones de conjuntos de entrenamiento diferentes. El mejor rendimiento se ha obtenido en cp=0, que es el parámetro que mide la complejidad del árbol. Obtenemos pues, que en cp=0, se da el mejor resultado de accuracy siendo un 91,25% de precisión y un valor de kappa de 0,8845, indicando que el modelo es bueno y no predice la clasificación al azar.
+Finalmente, a partir del plot del árbol generado de este modelo, vemos que el primer gen que clasifica los tipos de tumores, es el ATP5PD, si este gen tiene valores superiores o igual a 0,93, significa que el tumor se clasifica en la clase AGH con un 18%. Por otra parte, si en cambio ese valor es inferior, el tumor en primera instancia se clasificaría en la clase CFB con un 82% de probabilidades, pero después teniendo en cuenta la expresión del gen PDE6D, se podría clasificar otra vez en las clases CFB y CGC.
+
+```{r}
+# Evaluar el modelo con el conjunto de prueba
+predictions_raw <- predict(dtModel, newdata = testData, type = "raw") # raw = clases
+predictions_raw
+
+# Evaluar la precisión del modelo utilizando la matriz de confusión
+confusionMatrix(predictions_raw, testData$Class)
+
+# Obtener probabilidades
+probabilities_dt <- predict(dtModel, newdata = testData, type = "prob")
+probabilities_dt
+```
+
+Probando este último modelo entrenado con el conjunto de datos de prueba, vemos que la clasificación de los tumores tiene un valor de precisión de 87,42%, hasta ahora vemos que ha sido el modelo con un valor de precisión más bajo a diferencia de los otros. Además, en relación a las métricas más importantes de este nuevo modelo, vemos que la sensibilidad al modelo se ve reducida en todos los tipos de tumores menos en CHC que tiene un 100%. La especificidad en cambio, si que se ha visto reducida en todos los tipos de tumores, aún así siguen teniendo valores altos. 
+
+### Curvas ROC/PR?
+
+```{r}
+table(data$Class)
+
+```
+
+## Preguntas de respuesta corta
+
+
+
+
