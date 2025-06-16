@@ -19,4 +19,4 @@ Carpeta con los archivos de la actividad 3 grupal de Estadística y R.
 
 - ## Algoritmos_IA
   
-Carpeta con los archivos de la actividad grupal de Algoritmos e Inteligencia Artificial. 
+Carpeta con los archivos de la actividad 3 grupal de Algoritmos e Inteligencia Artificial. 
