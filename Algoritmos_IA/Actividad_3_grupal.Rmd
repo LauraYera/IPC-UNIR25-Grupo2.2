@@ -42,7 +42,7 @@ library(cluster)
 ## Lectura y procesamiento de los datos
 
 ```{r}
-setwd("~/Desktop/UNIR/1Q/Algoritmo_e_Inteligencia_Artificial/Actividad grupal")
+setwd("G:/PERSONAL/Edurne/MasterBioInformatica_UNIR/Asignaturas/1rSemestre_AlgoritmoseInteligenciaArtificial/Actividad3")
 
 genes.raw <- readLines("column_names.txt")
 
@@ -223,7 +223,6 @@ clusters_plot <- fviz_nbclust(df_scaled, kmeans, method = "wss") +
         plot.title=element_text(hjust=0.5))
 
 clusters_plot
-
 # Siguiendo la regla del codo (escoger el punto a partir del cual la curva se 
 # allana), hemos decidido escoger k = 4 como el valor óptimo.
 
@@ -278,23 +277,30 @@ diana_plot
 
 ## Implementación de métodos supervisados
 
-En esta parte, implementaremos tres métodos supervisados distintos para poder predecir una variable objetivo a partir de unos datos de entrada. Para ello debemos dividir nuestro dataframe en dos partes: una parte del dataframe para entrenar el modelo y otra parte para testear ese modelo.
+En esta parte, implementaremos tres métodos supervisados distintos para poder predecir 
+una variable objetivo a partir de unos datos de entrada. Para ello debemos dividir 
+nuestro dataframe en dos partes: una parte del dataframe para entrenar el modelo y otra 
+parte para testear ese modelo.
 
 ### Filtrado de variables mediante LASSO/Ridge/Elastic Net
 
-En primer lugar, queremos ver si hay alguno de los genes de nuestra base de datos que importa menos, de esta manera podemos descartar aquellos menos importantes y que la base de datos esté más limpia de datos innecesarios. Para ello, utilizamos modelos lineales de regularización, que son básicamente como modelos de regresión. Hay 3 modelos:
+En primer lugar, queremos ver si hay alguno de los genes de nuestra base de datos que 
+importa menos, de esta manera podemos descartar aquellos menos importantes y que la base 
+de datos esté más limpia de datos innecesarios. Para ello, utilizamos modelos lineales 
+de regularización, que son básicamente como modelos de regresión. Hay 3 modelos:
 
 - Modelos Ridge: da un peso no nulo a todas las varibles (pero muy cercano para las que no aportan)
 - Modelos LASSO: da un peso nulo a las variables poco importantes
 - Modelos Elasticnet (mix): quita variables pero no muchas
 
-En nuestro caso utilizamos Elasticnet, para quitar aquellos genes que sean menos importantes o con valor 0, pero solo los menos irrelevantes.
+En nuestro caso utilizamos Elasticnet, para quitar aquellos genes que sean menos importantes 
+o con valor 0, pero solo los más irrelevantes.
 
 ```{r}
 genes <- names(data_filtered[1:476])
 genes
 
-# Preparar los datos para el modelo Elasticnet
+# Preparamos los datos para el modelo Elasticnet
 x <- as.matrix(data_filtered[, genes])
 y <- factor(data_filtered$Class)
 
@@ -305,32 +311,20 @@ set.seed(1999)
 Elasticnet_model <- cv.glmnet(x, y, family = "multinomial", alpha = 0.5) 
 selected_genes <- coef(Elasticnet_model, s = "lambda.min") # extraemos los coeficientes
 
-selected_genes_AGH <- as.matrix(selected_genes$AGH)
-selected_genes_AGH <- as.data.frame(selected_genes_AGH)
-colnames(selected_genes_AGH) <- "AGH"
+selected_genes_tipos <- data.frame(
+  "AGH" = as.vector(selected_genes$AGH),
+  "CFB" = as.vector(selected_genes$CFB),
+  "CGC" = as.vector(selected_genes$CGC),
+  "CHC" = as.vector(selected_genes$CHC),
+  "HPB" = as.vector(selected_genes$HPB)
+)
 
-selected_genes_CFB <- as.matrix(selected_genes$CFB)
-selected_genes_CFB <- as.data.frame(selected_genes_CFB)
-colnames(selected_genes_CFB) <- "CFB"
+rownames(selected_genes_tipos) <- rownames(selected_genes$AGH)
 
-selected_genes_CGC <- as.matrix(selected_genes$CGC)
-selected_genes_CGC <- as.data.frame(selected_genes_CGC)
-colnames(selected_genes_CGC) <- "CGC"
-
-selected_genes_CHC <- as.matrix(selected_genes$CHC)
-selected_genes_CHC <- as.data.frame(selected_genes_CHC)
-colnames(selected_genes_CHC) <- "CHC"
-
-selected_genes_HPB <- as.matrix(selected_genes$HPB)
-selected_genes_HPB <- as.data.frame(selected_genes_HPB)
-colnames(selected_genes_HPB) <- "HPB"
-
-selected_genes_tipos <- cbind(selected_genes_AGH, selected_genes_CFB, selected_genes_CGC, selected_genes_CHC, selected_genes_HPB)
-
-# Eliminar la fila "(Intercept)" si no la necesitas
+# Eliminamos la fila "(Intercept)" porque no la necesitamos
 selected_genes_tipos_no_intercept <- selected_genes_tipos[rownames(selected_genes_tipos) != "(Intercept)", ]
 
-# Filtrar genes con al menos un coeficiente distinto de 0
+# Filtramos genes con al menos un coeficiente distinto de 0
 genes_filtrados <- selected_genes_tipos_no_intercept[apply(selected_genes_tipos_no_intercept != 0, 1, any), ]
 genes_filtrados
 
@@ -338,11 +332,13 @@ names <- rownames(genes_filtrados)
 names
 
 # Seleccionamos la variable a predecir (Class) y las variables relevantes (names)
-data <- data.raw %>% dplyr:: select(Class, names)
+# a partir de nuestra base de datos original filtrada (data_filtered)
+data <- data_filtered %>% 
+  dplyr::select(Class, all_of(names))
 
 write_csv(data, "~/Desktop/UNIR/1Q/Algoritmo_e_Inteligencia_Artificial/Actividad grupal/stata.csv")
 
-# Dividir el conjunto de datos en conjuntos de entrenamiento y prueba
+# Dividiremos el conjunto de datos en conjuntos de entrenamiento y prueba
 
 table(data$Class)
 
@@ -376,25 +372,60 @@ knnModel
 plot(knnModel)
 ```
 
-Para el modelo KNN se ha utilizado para entrenar el algoritmo, 642 observaciones, 196 variables centradas y escaladas y una repeticion de 10 particiones. El objetivo de este algoritmo es predecir el tipo de tumor (AGH, CFB, CGC, CHC, HPB), a partir de la expresión de genes teniendo en cuenta el algoritmo entrenado. Como resultado, tenemos que el modelo muestra su mejor resultado cuando k=9, es decir, cuando tiene en cuenta los 9 vecinos más cercanos para clasificar un nuevo resultado. Además, en k=9 se obtiene el mayor valor de precisión del algoritmo, siendo un valor de 0,9984127, indicando una precisión muy alta para poder clasificar los tumores en alguna de las 5 clases.
+Para el modelo KNN se han utilizado para entrenar el algoritmo: 642 observaciones, 196 
+variables centradas y escaladas. Además, el trainData se ha dividido en 10 particiones
+para hacer la cross-validation (en cada iteración se usan 9 particiones para entrenar 
+y 1 para validar, y se van rotando). El objetivo de este algoritmo es predecir el tipo 
+de tumor (AGH, CFB, CGC, CHC, HPB), a partir de la expresión de genes teniendo en cuenta 
+el algoritmo entrenado. 
+Como resultado, tenemos que el modelo muestra su mejor resultado cuando k=5-11 
+(aunque el modelo ha seleccionado k=11), es decir, cuando tiene en cuenta los 11 vecinos 
+más cercanos para clasificar un nuevo resultado. Además, en k=11 se obtiene el mayor valor 
+de precisión del algoritmo, siendo un valor de 0,9968990, indicando una precisión muy alta 
+para poder clasificar los tumores en alguna de las 5 clases.
 
 ```{r}
-# Realizar predicciones en el conjunto de prueba utilizando el modelo entrenado
-predictions <- predict(knnModel, newdata = testData )
-predictions
-
-# Evaluar la precisión del modelo utilizando la matriz de confusión)
-confusionMatrix(predictions, testData$Class)
-
-# Obtener probabilidades de las clases (como de probable es que un paciente se clasifique en la clase AGH, CFB, CGC, CHC y HPB)
+# Realizamos predicciones en el conjunto de prueba utilizando el modelo entrenado
+predictions_knn <- predict(knnModel, newdata = testData )
+table(predictions_knn)
 table(testData$Class)
-probabilities_knn <- predict(knnModel, newdata = testData, type = "prob")
-probabilities_knn # Sacamos las probabilidades para generar las curvas PR Curves
-```
+# Si lo comparamos con los valores reales de la testData vemos que hay el mismo número
+# de observaciones en cada clase a excepción de AGH y CFB, aunque sólo con esto no 
+# podemos asegurar que se han clasificado correctamente.
 
-Probando el modelo entrenado con el conjunto de datos de prueba (testData), en el cual queremos predecir que tipo de tumor clasifica para cada paciente teniendo en cuenta la expresión de genes de cada uno, vemos que el modelo acertó en la predicción en un 99,37% de los casos, siendo el valor de precisión de un 0,9937. Además, el valor kappa, es de un 0,9917 indicando que es un modelo sólido y fiable. En relación al resultado de la predicción, vemos que se han clasificado correctamente todas las clases de tumores menos una muestra de la clase AGH, que se predijo como CFB.
-En relación a las métricas más importantes del modelo, queremos destacar que se ha obtenido una sensibilidad alta del modelo para todas las clases de tumores, siendo la clase AGH la más baja con un 96,55%, aún así consideramos que es una sensibilidad muy buena. También destacar la especificidad alta del modelo para todas las clases, siendo la más baja la clase CFB con un 98,99% que aún así consideramos que es una especificidad alta. 
-Después de calcular las probabilidades por clase de tumor, vemos que esas probabilidad son muy poco realistas puesto que tienen poca variabilidad, siendo la predicción en algunos casos del 100% para un tipo de tumor en algunos pacientes. Es por ello, que decidimos implementar otro modelo supervisado, para intentar obtener una predicción aun mejor.
+# Para evaluar la precisión del modelo calcularemos la matriz de confusión:
+cnMatrix_knn <- confusionMatrix(predictions_knn, testData$Class)
+cnMatrix_knn
+
+# Haremos una tabla que nos enseñe diferentes métricas de evaluación de nuestro modelo:
+metrics_knn <- data.frame(
+  "Precision" = cnMatrix_knn$byClass[, "Pos Pred Value"],
+  "Sensibilidad" = cnMatrix_knn$byClass[, "Sensitivity"],
+  "Especificidad" = cnMatrix_knn$byClass[, "Specificity"],
+  "Score_F1" = cnMatrix_knn$byClass[, "F1"]
+)
+metrics_knn
+
+# Obtenemos probabilidades de las clases (como de probable es que un paciente se 
+# clasifique en la clase AGH, CFB, CGC, CHC y HPB), para generar PR curves.
+probabilities_knn <- predict(knnModel, newdata = testData, type = "prob")
+```
+Observamos que el modelo de kNN ha clasificado correctamente a los pacientes de 
+nuestro testData en un 99,37% de los casos (accuracy). De hecho, sólo ha fallado
+en un paciente que ha clasificado como CFB, siendo realmente AGH.
+
+Además, los parámetros de especificidad y sensibilidad para las diferentes clases son
+perfectos (1 en tanto por 1) en todas las clases menos para CFB y AGH, debido al paciente 
+mal clasificado, aunque aún así siguen teniendo valores superiores al 96%. La precisión 
+(o valor predictivo positivo) es del 100% para todos menos para CFB (98.36%) debido al 
+paciente mal clasificado. Y en cuanto al valor F1, que describe de forma global
+el rendimiento para cada clase vemos que es también del 100% para todos excepto AGH y CFB,
+aunque siguen teniendo valores muy altos (98.24% y 99.17%, respectivamente).
+
+
+Viendo que las clasificaciones han sido practicamente perfectas, podríamos sospechar
+de over-fitting, por lo que compararemos con otros modelos.
+
 
 ### Modelo supervisado SMV (Support Vector Machine)
 
