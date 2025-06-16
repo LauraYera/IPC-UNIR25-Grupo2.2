@@ -26,3 +26,11 @@ Archivo .csv con la expresión de cada variable (columna) por cada observación 
 - ### README.md
 
 Archivo actual en el que se detalla el contenido de la carpeta.
+
+- ### stata.csv
+
+Archivo .csv con los datos de expresión filtrados mediante el modelo Elastic Net y clasificados para hacer los métodos de aprendizaje supervisados.
+
+- ### Rplot.pdf
+
+Archivo .pdf del resultado de aplicar el modelo supervisado Decission Tree sobre nuestros datos.
