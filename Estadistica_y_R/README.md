@@ -26,3 +26,7 @@ Archivo word con las tablas y el informe de la actividad 3.
 - #### Estadística_Actividad3_Grupo2.2.html
 
 Archivo .html con el "knit" del documento .Rmd.
+
+- #### README.md
+
+Archivo actual en el que se detalla el contenido de la carpeta.
