@@ -37,6 +37,7 @@ library(grDevices)
 library(randomForest)
 library(factoextra)
 library(cluster)
+library(kernlab)
 ```
 
 ## Lectura y procesamiento de los datos
@@ -351,8 +352,12 @@ testData <- data[-trainIndex,]
 
 ### Modelo supervisado K-Nearest Neightbor (KNN)
 
-En primer lugar escogemos el modelo K-Nearest Neighbor como primer modelo supervisado porque es un algoritmo bastante intuitivo, fácil de entender y aplicar.
-Este modelo, clasifica una variable en función de la mayoría de sus vecinos más cercanos, esto lo hace adecuado para este conjunto de datos que tenemos, puesto que tenemos un conjunto de expresión de genes que deben clasificarse en 5 tipos de tumores distintos según la expresión de esas variables.
+En primer lugar escogemos el modelo K-Nearest Neighbor como primer modelo supervisado 
+porque es un algoritmo bastante intuitivo, fácil de entender y aplicar.
+Este modelo, clasifica una variable en función de la mayoría de sus vecinos más cercanos, 
+esto lo hace adecuado para este conjunto de datos que tenemos, puesto que tenemos un 
+conjunto de expresión de genes que deben clasificarse en 5 tipos de tumores distintos 
+según la expresión de esas variables.
 
 ```{r}
 # Para el modelo k-NN utilizamos el paquete caret
@@ -387,13 +392,13 @@ para poder clasificar los tumores en alguna de las 5 clases.
 ```{r}
 # Realizamos predicciones en el conjunto de prueba utilizando el modelo entrenado
 predictions_knn <- predict(knnModel, newdata = testData )
-table(predictions_knn)
 table(testData$Class)
+table(predictions_knn)
 # Si lo comparamos con los valores reales de la testData vemos que hay el mismo número
 # de observaciones en cada clase a excepción de AGH y CFB, aunque sólo con esto no 
 # podemos asegurar que se han clasificado correctamente.
 
-# Para evaluar la precisión del modelo calcularemos la matriz de confusión:
+# Para evaluar mejor el modelo calcularemos la matriz de confusión:
 cnMatrix_knn <- confusionMatrix(predictions_knn, testData$Class)
 cnMatrix_knn
 
@@ -405,10 +410,6 @@ metrics_knn <- data.frame(
   "Score_F1" = cnMatrix_knn$byClass[, "F1"]
 )
 metrics_knn
-
-# Obtenemos probabilidades de las clases (como de probable es que un paciente se 
-# clasifique en la clase AGH, CFB, CGC, CHC y HPB), para generar PR curves.
-probabilities_knn <- predict(knnModel, newdata = testData, type = "prob")
 ```
 Observamos que el modelo de kNN ha clasificado correctamente a los pacientes de 
 nuestro testData en un 99,37% de los casos (accuracy). De hecho, sólo ha fallado
@@ -422,92 +423,219 @@ paciente mal clasificado. Y en cuanto al valor F1, que describe de forma global
 el rendimiento para cada clase vemos que es también del 100% para todos excepto AGH y CFB,
 aunque siguen teniendo valores muy altos (98.24% y 99.17%, respectivamente).
 
-
 Viendo que las clasificaciones han sido practicamente perfectas, podríamos sospechar
-de over-fitting, por lo que compararemos con otros modelos.
+de over-fitting, por lo que compararemos con otros modelos más complejos.
 
 
-### Modelo supervisado SMV (Support Vector Machine)
+### Modelo supervisado SMV (Support Vector Machine) tipo kernel radial
 
-- Crear un modelo de SVM tipo kernel utilizando el paquete caret
-- No hace falta tunear el parámetro C "cost" 
-- Saca hiperparametro C e hiperparámetro sigma
+Usaremos el método SMV de tipo kernel radial, y controlaremos la C para evitar
+un over-fitting (si la C es muy grande).
 
 ```{r}
 set.seed(1999)
 svmModelKernel <- train(Class ~.,
                         data = trainData,
                         method = "svmRadial",
-                        trControl = trainControl(method = "cv", number = 10),
+                        trControl = trainControl(method = "cv", number = 10, classProbs = TRUE),
                         preProcess = c("center", "scale"),
-                        tuneLength = 10,
-                        prob.model = TRUE) 
+                        tuneLength = 15
+                        ) 
 svmModelKernel
 plot(svmModelKernel)
 ```
 
-Para este modelo se ha utilizado la misma trainData, con 10 particiones diferentes y el mejor rendimiento se ha obtenido en C=2, obteniendo un valor de precisión de 0.8975509, esto nos indica que el modelo es bueno para predecir el tipo de tumor, aunque no mejor que el modelo anterior.
+Para este modelo se ha utilizado la misma trainData, con 10 particiones diferentes y 
+el mejor rendimiento se ha obtenido en C=2, obteniendo una accuracy de 0.8958233, esto nos indica 
+que el modelo es bueno para predecir el tipo de tumor, aunque la accuracy es peor que la del kNN.
+No obstante, esto podría deberse a que el anterior introducía cierto over-fitting.
+En el gráfico podemos observar que la accuracy tiene un pico global cuando la c está alrededor de 2,
+con c menores la accuracy baja muchísimo, y con c mayores tiene valores ligeramente inferiores
+pero se mantienen bastante estables (no obstante, como una C alta puede inducir a over-fitting,
+es mejor quedarnos con una C baja).
 
 ```{r}
-# Realizar predicciones en el conjunto de prueba utilizando el modelo entrenado
-predictions <- predict(svmModelKernel, newdata = testData )
-predictions
+# Realizamos las predicciones:
+predictions_svmRadial <- predict(svmModelKernel, newdata = testData )
+table(testData$Class)
+table(predictions_svmRadial)
+
+# Observamos que aunque AGH, CFB y HPB tienen el mismo número de pacientes entre
+# los datos reales y los predichos, hay un gran número de observaciones que parecen
+# haberse movido de CHC a CGC.
 
 # Evaluar la precisión del modelo utilizando la matriz de confusión
-confusionMatrix(predictions, testData$Class)
+cnMatrix_svmRadial <- confusionMatrix(predictions_svmRadial, testData$Class)
+cnMatrix_svmRadial
 
-# SVM kernel
-probabilities_svm_kernel <- predict(svmModelKernel, newdata = testData, type = "prob")
-probabilities_svm_kernel
+# Haremos una tabla que nos enseñe diferentes métricas de evaluación de nuestro modelo:
+metrics_svmRadial <- data.frame(
+  "Precision" = cnMatrix_svmRadial$byClass[, "Pos Pred Value"],
+  "Sensibilidad" = cnMatrix_svmRadial$byClass[, "Sensitivity"],
+  "Especificidad" = cnMatrix_svmRadial$byClass[, "Specificity"],
+  "Score_F1" = cnMatrix_svmRadial$byClass[, "F1"]
+)
+metrics_svmRadial
 ```
 
-Probando este otro modelo entrenado con el conjunto de datos de prueba, vemos que la clasificación de los tumores según los pacientes pese a no ser mejor que el modelo anterior, nos da un valor de precisión alto con un 90,57%. Vemos que en este modelo obtenemos más errores de clasificación que en el anterior, confundiendo varias muestras de CHC como CGC. Esto podría deberse, a que si nos fijamos en las métricas más importantes de este nuevo modelo, la sensibilidad al modelo se ve reducida en la clase CHC, de ahí que hayan tantos errores de clasificación en esta clase de tumor. 
-Destacar que las probabilidades que me da este modelo son más coherentes e incluso tienen más variabilidad que el modelo anterior.
-Seguidamente, probaremos con otro modelo supervisado para poder comparar los tres modelos con las PR Curves y decidir cual de todos finalmente es el mejor.
+En este modelo podemos ver que la accuracy es del 91.19%, debido a la clasificación
+errónea de 13 pacientes que eran CHC y fueron clasificados como CGC. El resto de
+clasificaciones fueron correctas, lo que se traduce también en valores de precisión, sensibilidad
+y especificidad perfectos (100%) para las clases no afectadas, como podeoms observar en la tabla 
+de metrics_svmRadial. En cambio, para CHC obtenemos una sensibilidad de menos del 50%, y para CGC
+tenemos una precisión del 66,6% y una especificidad del 89.31%. En el score F1 se refleja lo mismo,
+valores perfectos para las clases no afectadas por la clasificación errónea, mientras queCGC y CHC 
+obtuvieron 0.80 y 0.65, respectivamente.
+Parece que este modelo es especialmente bueno en clasificar correctamente tumores de las clases AGH, 
+CFB, CGC y HPB, pero a los tumores de la categoría CHC los confunde la mitad de las veces con los 
+tipo CGC.
 
-### Modelo supervisado Decission Tree (DT)
+
+### Modelo Random Forest
+
+Ahora usaremos un modelo ensemble que combine varios árboles de decisión, para intentar
+tener un buen modelo y que a la vez se reduzca el riesgo de over-fitting que tal vez
+podría estar sucediendo en el kNN.
 
 ```{r}
+# Usaremos settings similares al método anterior, usand trainData como datos de
+# entrenamiento y una cross-validation con 10 particiones. De la misma forma,
+# escalaremos y centraremos los datos antes de aplicar el método.
+
 set.seed(1999)
-dtModel <- train(Class ~.,
-                 data = trainData,
-                 method = "rpart",
-                 trControl = trainControl(method = "cv", number = 10),
-                 preProcess = c("center", "scale"),
-                 tuneLength = 10)
-dtModel
-plot(dtModel)
+rfmodel <- train(Class ~ .,
+                  data = trainData,
+                  method = "rf",
+                  trControl = trainControl(method = "cv", number = 10),
+                  preProcess = c("center", "scale"),
+                  tuneLength = 10) 
 
-# Plot de las decisiones del arbol generado
-fancyRpartPlot(dtModel$finalModel, type=4)
+rfmodel
+plot(rfmodel)
 ```
+Usando este método, el algoritmo ha decido que el mejor parámetro es mtry = 2,
+con una accuracy resultante de 0.9937 y una kappa de 0.9917. Si observamos el gráfico,
+vemos que a medida que aumenta el mtry, va bajando la accuracy aunque hay un máximo local
+alrededor de mtry=85-90. De todos modos, la accuracy al mtry elegido sigue siendo muy buena.
 
-Para este modelo de Decission Tree, se ha utilizado la misma trainData y con 10 particiones de conjuntos de entrenamiento diferentes. El mejor rendimiento se ha obtenido en cp=0, que es el parámetro que mide la complejidad del árbol. Obtenemos pues, que en cp=0, se da el mejor resultado de accuracy siendo un 91,25% de precisión y un valor de kappa de 0,8845, indicando que el modelo es bueno y no predice la clasificación al azar.
-Finalmente, a partir del plot del árbol generado de este modelo, vemos que el primer gen que clasifica los tipos de tumores, es el ATP5PD, si este gen tiene valores superiores o igual a 0,93, significa que el tumor se clasifica en la clase AGH con un 18%. Por otra parte, si en cambio ese valor es inferior, el tumor en primera instancia se clasificaría en la clase CFB con un 82% de probabilidades, pero después teniendo en cuenta la expresión del gen PDE6D, se podría clasificar otra vez en las clases CFB y CGC.
 
 ```{r}
-# Evaluar el modelo con el conjunto de prueba
-predictions_raw <- predict(dtModel, newdata = testData, type = "raw") # raw = clases
-predictions_raw
+# Ahora haremos las predicciones con este modelo
+predictions_rf <- predict(rfmodel, newdata = testData )
+table(predictions_rf)
+table(testData$Class)
 
-# Evaluar la precisión del modelo utilizando la matriz de confusión
-confusionMatrix(predictions_raw, testData$Class)
+# En este caso vemos que el único grupo que mantiene el número de observaciones
+# entre la predicción y los valores reales es CHC, el resto tienen un valor más o menos
+# predicho, por lo que a priori parece que este modelo es un poco peor al anterior.
 
-# Obtener probabilidades
-probabilities_dt <- predict(dtModel, newdata = testData, type = "prob")
-probabilities_dt
+# Para evaluar mejor modelo calcularemos la matriz de confusión:
+cnMatrix_rf <- confusionMatrix(predictions_rf, testData$Class)
+cnMatrix_rf
+
+# Ahora haremos la tabla de las metricas:
+metrics_rf <- data.frame(
+  "Precision" = cnMatrix_rf$byClass[, "Pos Pred Value"],
+  "Sensibilidad" = cnMatrix_rf$byClass[, "Sensitivity"],
+  "Especificidad" = cnMatrix_rf$byClass[, "Specificity"],
+  "Score_F1" = cnMatrix_rf$byClass[, "F1"]
+)
+metrics_rf
 ```
+Observando la matrix de confusión, vemos que en el caso del Random Forest se ha predicho
+érroneamente un paciente AGH como CFB (que ya ocurrió en el modelo kNN). Además, también 
+se ha classificado de forma érronea un paciente HPB como CGC. Es por ello que, aunque las
+distintas métricas siguen siendo muy elevadas (todas por encima del 90%), ahora son un poco
+peores que en el modelo kNN (sobre todo las métricas asociadas a los grupos HPC y CGC, ya que
+en kNN no hubo ninguna classificación errónea en esas clases).
+Usando este método, la única clase en la que no ha habido ningún error de clasificación es CHC,
+lo que se ve por ser la única clase con un 100% en todas las métricas.
+Fijandonos en el valor F1, vemos que este método tiene un peor score para la clase HPB, aunque
+probablemente sea por reducida n de observaciones (por lo que un fallo tiene un impacto mayor).
 
-Probando este último modelo entrenado con el conjunto de datos de prueba, vemos que la clasificación de los tumores tiene un valor de precisión de 87,42%, hasta ahora vemos que ha sido el modelo con un valor de precisión más bajo a diferencia de los otros. Además, en relación a las métricas más importantes de este nuevo modelo, vemos que la sensibilidad al modelo se ve reducida en todos los tipos de tumores menos en CHC que tiene un 100%. La especificidad en cambio, si que se ha visto reducida en todos los tipos de tumores, aún así siguen teniendo valores altos. 
 
-### Curvas ROC/PR?
+### Comparativa de los modelos de aprendizaje supervisado
+
+Ya que el valor F1 es un valor único que nos permite evaluar cada modelo por clase,
+vamos a juntar en una misma tabla los valores F1 y así poder comparar los distintos modelos.
 
 ```{r}
-table(data$Class)
-
+scores_F1 <- data.frame(
+  kNN = metrics_knn$Score_F1,
+  svmRadial = metrics_svmRadial$Score_F1,
+  RF = metrics_rf$Score_F1
+)
+rownames(scores_F1) <- rownames(metrics_knn)
+scores_F1
 ```
+Como ya hemos ido viendo, al comparar los tres modelo, vemos que el mejor en cuanto
+a score F1 por clase sería el modelo kNN, que tiene valores máximos para 3 de las 5 clases
+(a diferencia de RF que solo tiene 1). Para aquellas clases donde el valor F1 no es máximo, 
+éste sigue siendo muy elevado (0.98 y 0.99), en comparación por ejemplo a los de svmRadial 
+(0.8 y 0.65).
+Por lo tanto, en el caso de no producirse over-fitting, el mejor modelo sería kNN, seguido
+por el Random Forest.
+
+
 
 ## Preguntas de respuesta corta
+
+### Pregunta 1. Procesamiento de los datos.
+#### ¿Qué método habéis escogido para llevar a cabo la imputación de los datos? Razonad vuestra respuesta.
+La imputación de datos en el sentido de rellenar aquellos campos en los que hubiera datos NA no se ha realizado,
+porque no había datos NA. En cuanto al tratamiento de 0s, se explicará a continuación.
+
+#### ¿Habéis llevado a cabo algún otro tipo de procesamiento? Razonad vuestra respuesta.
+A parte de buscar datos NA, buscamos aquellas variables que tuvieran 0s. En concreto, buscamos
+variables que tuvieran una gran cantidad de 0s (en un 75% o más de las observaciones), ya que este
+tipo de resultados pueden deberse a que 1) el gen no se expresa o 2) ha habido algún error en el
+método de cuantificación o falta de sensibilidad. En cualquier caso, este tipo de variables probablemente 
+no van a aportar mucha información que ayude a clasificar las observaciones, por lo que se han descartado
+en pos de tener una base de datos lo más manejable posible. Del mismo modo, se han buscado aquellas variables
+que tuvieran el mismo valor en todas las observaciones (es decir, una desviación estándard == 0), porque 
+tampoco hubieran podido aportar valor clasificatorio. No hemos encontrado ninguna variable que
+cumpliese ese criterio, pero de haberlo hecho, también la hubieramos eliminado.
+
+### Pregunta 2. Métodos no supervisados.
+#### ¿Cuál es el motivo por el cual habéis seleccionado estas técnicas de reducción de dimensionalidad?
+Hemos decidido usar t-SNE y UMAP porque ambos pueden tratar con datos no lineales, y ambos
+separan bien los grupos de forma visual (además, a partir de los ejemplos de clase y de la actividad 1 nos
+parecían los mejores métodos). También son los métodos que más parecen usarse (algunos compañeros del grupo
+los han visto en artículos y en sus trabajos), por lo que nos interesaba aprender a usarlos.
+
+#### ¿Cuál es el motivo por el cual habéis seleccionado estas técnicas de clusterización?
+Hemos decidido usar un método jerarquico y uno no-jerárquico. Como de los no jerárquicos
+sólo hemos visto k-Means en clase, ese es el que hemos hecho. De los jerárquicos decidimos hacer 
+el divisivo (DIANA), porque en teoría es menos costoso que el jerarquico algomerativo.
+
+
+#### En ambos casos, ¿qué aspectos positivos y negativos tienen cada una?
+- tSNE:
+- UMAP:
+- k-Means:
+- DIANA:
+
+#### En el caso de la clusterización, ¿podéis afirmar con certeza que los clústeres generados son 
+los mejores posibles? Razonad vuestra respuesta.
+
+### Pregunta 3. Métodos supervisados
+#### ¿Cuál es el motivo por el cual habéis seleccionado ambas técnicas de aprendizaje supervisado? 
+¿Cuál ha dado mejores resultados a la hora de clasificar las muestras? Razonad vuestra respuesta.
+
+#### ¿Habéis considerado oportuno implementar algún método de reducción de dimensionalidad 
+para procesar los datos antes de implementarlos en dichas técnicas? ¿Por qué?
+
+#### ¿Qué aspectos positivos y negativos tienen cada una de las técnicas que habéis escogido?
+
+### Pregunta 4. De estas cuatro opciones, ¿qué tipo de arquitectura de deep learning sería 
+la más adecuada para procesar datos de expresión génica? Razonad vuestra respuesta.
+a) Red de perceptrones (multiperceptron layers).
+b) Redes convolucionales.
+c) Redes recurrentes.
+d) Redes de grafos.
+
+
+
 
 
 
