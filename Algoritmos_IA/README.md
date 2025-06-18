@@ -11,6 +11,10 @@ Documento .docx con los enunciados y explicación de la actividad.
 
 Documento R markdown con la resolución de la actividad (actualmente en edición).
 
+- ### Actividad_3_grupal.html
+
+Documento .html con la resolución de la actividad (knit del archivo .rmd).
+
 - ### classes.csv
 
 Archivo .csv con la lista de observaciones (pacientes) y su clasificación por tipo de cáncer.
