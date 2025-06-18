@@ -7,7 +7,7 @@ output:
     theme:
       bootswatch: flatly
     toc: TRUE
-    toc_depth: 4
+    toc_depth: 3
 ---
 
 ```{r setup, include=FALSE}
@@ -20,24 +20,17 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r warning = FALSE, message = FALSE}
 rm(list=ls())
+library(tidyverse)
+library(caret)
 library(ggplot2)
 library(stats)
 library(Rtsne)
-library(RDRToolbox)
 library(uwot)
 library(glmnet)
-library(tidyverse)
-library(caret)
-library(rpart)
-library(rpart.plot)
-library(rattle)
-library(PRROC)
-library(gridExtra)
-library(grDevices)
-library(randomForest)
 library(factoextra)
 library(cluster)
 library(kernlab)
+library(randomForest)
 ```
 
 ## Lectura y procesamiento de los datos
@@ -286,20 +279,17 @@ parte para testear ese modelo.
 ### Filtrado de variables mediante LASSO/Ridge/Elastic Net
 
 En primer lugar, queremos ver si hay alguno de los genes de nuestra base de datos que 
-importa menos, de esta manera podemos descartar aquellos menos importantes y que la base 
-de datos esté más limpia de datos innecesarios. Para ello, utilizamos modelos lineales 
-de regularización, que son básicamente como modelos de regresión. Hay 3 modelos:
+aporte menos información y que pueda ser filtrado para que la base de datos esté más
+simplificada. Para ello, utilizamos modelos lineales de regularización. Hay 3 modelos:
 
-- Modelos Ridge: da un peso no nulo a todas las varibles (pero muy cercano para las que no aportan)
 - Modelos LASSO: da un peso nulo a las variables poco importantes
-- Modelos Elasticnet (mix): quita variables pero no muchas
+- Modelos Ridge: da un peso pequeño pero no nulo a las variables menos importantes
+- Modelos Elasticnet: es un modelo intermedio entre los dos anteriores
 
-En nuestro caso utilizamos Elasticnet, para quitar aquellos genes que sean menos importantes 
-o con valor 0, pero solo los más irrelevantes.
+En nuestro caso utilizamos Elasticnet, para eliminar sólo aquellos genes más irrelevantes.
 
 ```{r}
 genes <- names(data_filtered[1:476])
-genes
 
 # Preparamos los datos para el modelo Elasticnet
 x <- as.matrix(data_filtered[, genes])
@@ -327,17 +317,15 @@ selected_genes_tipos_no_intercept <- selected_genes_tipos[rownames(selected_gene
 
 # Filtramos genes con al menos un coeficiente distinto de 0
 genes_filtrados <- selected_genes_tipos_no_intercept[apply(selected_genes_tipos_no_intercept != 0, 1, any), ]
-genes_filtrados
-
 names <- rownames(genes_filtrados)
-names
+
 
 # Seleccionamos la variable a predecir (Class) y las variables relevantes (names)
 # a partir de nuestra base de datos original filtrada (data_filtered)
 data <- data_filtered %>% 
   dplyr::select(Class, all_of(names))
 
-write_csv(data, "~/Desktop/UNIR/1Q/Algoritmo_e_Inteligencia_Artificial/Actividad grupal/stata.csv")
+write_csv(data, "G:/PERSONAL/Edurne/MasterBioInformatica_UNIR/Asignaturas/1rSemestre_AlgoritmoseInteligenciaArtificial/Actividad3/stata.csv")
 
 # Dividiremos el conjunto de datos en conjuntos de entrenamiento y prueba
 
@@ -350,9 +338,9 @@ trainData <- data[trainIndex,]
 testData <- data[-trainIndex,]
 ```
 
-### Modelo supervisado K-Nearest Neightbor (KNN)
+### Modelo supervisado K-Nearest Neightbors (KNN)
 
-En primer lugar escogemos el modelo K-Nearest Neighbor como primer modelo supervisado 
+En primer lugar escogemos el modelo K-Nearest Neighbors como primer modelo supervisado 
 porque es un algoritmo bastante intuitivo, fácil de entender y aplicar.
 Este modelo, clasifica una variable en función de la mayoría de sus vecinos más cercanos, 
 esto lo hace adecuado para este conjunto de datos que tenemos, puesto que tenemos un 
@@ -386,7 +374,7 @@ el algoritmo entrenado.
 Como resultado, tenemos que el modelo muestra su mejor resultado cuando k=5-11 
 (aunque el modelo ha seleccionado k=11), es decir, cuando tiene en cuenta los 11 vecinos 
 más cercanos para clasificar un nuevo resultado. Además, en k=11 se obtiene el mayor valor 
-de precisión del algoritmo, siendo un valor de 0,9968990, indicando una precisión muy alta 
+de accuracy del algoritmo, siendo un valor de 0,9968990, indicando una accuracy muy alta 
 para poder clasificar los tumores en alguna de las 5 clases.
 
 ```{r}
@@ -484,7 +472,7 @@ clasificaciones fueron correctas, lo que se traduce también en valores de preci
 y especificidad perfectos (100%) para las clases no afectadas, como podeoms observar en la tabla 
 de metrics_svmRadial. En cambio, para CHC obtenemos una sensibilidad de menos del 50%, y para CGC
 tenemos una precisión del 66,6% y una especificidad del 89.31%. En el score F1 se refleja lo mismo,
-valores perfectos para las clases no afectadas por la clasificación errónea, mientras queCGC y CHC 
+valores perfectos para las clases no afectadas por la clasificación errónea, mientras que CGC y CHC 
 obtuvieron 0.80 y 0.65, respectivamente.
 Parece que este modelo es especialmente bueno en clasificar correctamente tumores de las clases AGH, 
 CFB, CGC y HPB, pero a los tumores de la categoría CHC los confunde la mitad de las veces con los 
@@ -513,10 +501,12 @@ rfmodel <- train(Class ~ .,
 rfmodel
 plot(rfmodel)
 ```
-Usando este método, el algoritmo ha decido que el mejor parámetro es mtry = 2,
-con una accuracy resultante de 0.9937 y una kappa de 0.9917. Si observamos el gráfico,
-vemos que a medida que aumenta el mtry, va bajando la accuracy aunque hay un máximo local
-alrededor de mtry=85-90. De todos modos, la accuracy al mtry elegido sigue siendo muy buena.
+
+Usando este método, el algoritmo ha decido que el mejor parámetro es mtry = 23,
+con una accuracy resultante de 0.9906 y una kappa de 0.9876. Si observamos el gráfico,
+vemos que al principio, la accuracy va aumentando con el mtry hasta llegar al máximo en
+23, y a partir de allí aumentar el mtry sólo disminuye o estabiliza la accuracy (aunque
+el valor más bajo observado en la gráfica es aún de 0.98).
 
 
 ```{r}
@@ -525,9 +515,8 @@ predictions_rf <- predict(rfmodel, newdata = testData )
 table(predictions_rf)
 table(testData$Class)
 
-# En este caso vemos que el único grupo que mantiene el número de observaciones
-# entre la predicción y los valores reales es CHC, el resto tienen un valor más o menos
-# predicho, por lo que a priori parece que este modelo es un poco peor al anterior.
+# En este caso vemos los grupos AGH y CFB parecen haber intercambiado una observación,
+# mientras que el resto de grupos se mantiene igual.
 
 # Para evaluar mejor modelo calcularemos la matriz de confusión:
 cnMatrix_rf <- confusionMatrix(predictions_rf, testData$Class)
@@ -543,15 +532,12 @@ metrics_rf <- data.frame(
 metrics_rf
 ```
 Observando la matrix de confusión, vemos que en el caso del Random Forest se ha predicho
-érroneamente un paciente AGH como CFB (que ya ocurrió en el modelo kNN). Además, también 
-se ha classificado de forma érronea un paciente HPB como CGC. Es por ello que, aunque las
-distintas métricas siguen siendo muy elevadas (todas por encima del 90%), ahora son un poco
-peores que en el modelo kNN (sobre todo las métricas asociadas a los grupos HPC y CGC, ya que
-en kNN no hubo ninguna classificación errónea en esas clases).
-Usando este método, la única clase en la que no ha habido ningún error de clasificación es CHC,
-lo que se ve por ser la única clase con un 100% en todas las métricas.
-Fijandonos en el valor F1, vemos que este método tiene un peor score para la clase HPB, aunque
-probablemente sea por reducida n de observaciones (por lo que un fallo tiene un impacto mayor).
+érroneamente un paciente AGH como CFB, y que la accuracy del modelo es de 0.9937 (valores
+exactos a los del modelo kNN). Con el resto de clases no se han cometido errores, y es 
+por ello que CGC, CGC y HPB tienen métricas perfectas de precision, sensibilidad, especificidad 
+y score F1 (como podemos ver en la tabla metrics_rf).
+Fijandonos en el valor F1, vemos que este método tiene un peor score para la AGH y CFB, por
+el paciente mal clasificado, pero siguen siendo valores muy altos (los mismos que en el modelo kNN).
 
 
 ### Comparativa de los modelos de aprendizaje supervisado
@@ -568,24 +554,26 @@ scores_F1 <- data.frame(
 rownames(scores_F1) <- rownames(metrics_knn)
 scores_F1
 ```
-Como ya hemos ido viendo, al comparar los tres modelo, vemos que el mejor en cuanto
-a score F1 por clase sería el modelo kNN, que tiene valores máximos para 3 de las 5 clases
-(a diferencia de RF que solo tiene 1). Para aquellas clases donde el valor F1 no es máximo, 
-éste sigue siendo muy elevado (0.98 y 0.99), en comparación por ejemplo a los de svmRadial 
-(0.8 y 0.65).
-Por lo tanto, en el caso de no producirse over-fitting, el mejor modelo sería kNN, seguido
-por el Random Forest.
+Al comparar los tres modelos vemos que los mejores, en cuanto a score F1 por clase,
+serían los modelo kNN y Random Forest, ya que tienen valores perfectos para 3 de 
+las cinco clases (y para las otras dos siguen teniendo valores elevados de 0.98 y 0.99).
+Teniendo en cuenta que tanto el modelo kNN como el Random Forest han salido iguales, es
+probable que el aprendizaje haya sido bueno y no estemos observando over-fitting.
+En el modelo svmRadial vemos que el F1 score de la clase CHC es muy bajo ya que, como hemos
+visto en la matriz de confusión del modelo, ha clasificado mal a la mitad de pacientes CHC.
 
 
 
 ## Preguntas de respuesta corta
 
 ### Pregunta 1. Procesamiento de los datos.
-#### ¿Qué método habéis escogido para llevar a cabo la imputación de los datos? Razonad vuestra respuesta.
+**¿Qué método habéis escogido para llevar a cabo la imputación de los datos? Razonad vuestra respuesta.**
+
 La imputación de datos en el sentido de rellenar aquellos campos en los que hubiera datos NA no se ha realizado,
 porque no había datos NA. En cuanto al tratamiento de 0s, se explicará a continuación.
 
-#### ¿Habéis llevado a cabo algún otro tipo de procesamiento? Razonad vuestra respuesta.
+**¿Habéis llevado a cabo algún otro tipo de procesamiento? Razonad vuestra respuesta.**
+
 A parte de buscar datos NA, buscamos aquellas variables que tuvieran 0s. En concreto, buscamos
 variables que tuvieran una gran cantidad de 0s (en un 75% o más de las observaciones), ya que este
 tipo de resultados pueden deberse a que 1) el gen no se expresa o 2) ha habido algún error en el
@@ -596,47 +584,170 @@ que tuvieran el mismo valor en todas las observaciones (es decir, una desviació
 tampoco hubieran podido aportar valor clasificatorio. No hemos encontrado ninguna variable que
 cumpliese ese criterio, pero de haberlo hecho, también la hubieramos eliminado.
 
+
 ### Pregunta 2. Métodos no supervisados.
-#### ¿Cuál es el motivo por el cual habéis seleccionado estas técnicas de reducción de dimensionalidad?
+**¿Cuál es el motivo por el cual habéis seleccionado estas técnicas de reducción de dimensionalidad?**
+
 Hemos decidido usar t-SNE y UMAP porque ambos pueden tratar con datos no lineales, y ambos
 separan bien los grupos de forma visual (además, a partir de los ejemplos de clase y de la actividad 1 nos
 parecían los mejores métodos). También son los métodos que más parecen usarse (algunos compañeros del grupo
 los han visto en artículos y en sus trabajos), por lo que nos interesaba aprender a usarlos.
 
-#### ¿Cuál es el motivo por el cual habéis seleccionado estas técnicas de clusterización?
+**¿Cuál es el motivo por el cual habéis seleccionado estas técnicas de clusterización?**
+
 Hemos decidido usar un método jerarquico y uno no-jerárquico. Como de los no jerárquicos
 sólo hemos visto k-Means en clase, ese es el que hemos hecho. De los jerárquicos decidimos hacer 
 el divisivo (DIANA), porque en teoría es menos costoso que el jerarquico algomerativo.
 
+**En ambos casos, ¿qué aspectos positivos y negativos tienen cada una?**
 
-#### En ambos casos, ¿qué aspectos positivos y negativos tienen cada una?
-- tSNE:
-- UMAP:
-- k-Means:
-- DIANA:
 
-#### En el caso de la clusterización, ¿podéis afirmar con certeza que los clústeres generados son 
-los mejores posibles? Razonad vuestra respuesta.
+*tSNE:*
+
+Positivos: captura bien relaciones complejas, preserva localidad de datos y también
+aporta algo de la estructura global.
+
+Negativos: tiene componente estocástico y por eso hay que usar seeds, se usa sobre todo
+para visualizar porque el rendimiento con >3 dimensiones no es el mejor. Computacionalmente
+costoso con grandes cantidades de datos.
+
+
+*UMAP:*
+
+Positivos: Es eficaz y versátil para reducir la dimensionalidad.
+
+Negativos: Muy complejo debido a todos los parámetros personalizables, que a su vez impactan
+sobre el coste computacional. Aunque en teoría tiene componente estocástico (como t-SNE), 
+no se observan grandes variaciones.
+
+
+*k-Means:*
+
+Positivos: Es sencillo y poco costoso computacionalmente.
+
+Negativos: A veces es dificil encontrar la k óptima, y es sensible a outliers.
+
+
+*DIANA:*
+
+Positivos: Menos costoso computacionalmente que otros métodos jerárquicos. A diferencia de los 
+métodos agloerativos que van juntando puntos y se quedan unidos, los métodos divisivos empiezan
+por un cluster y van separando, por lo que no se ven "obligados" a mantener puntos juntos; lo que los
+hace más flexibles que los aglomerativos.
+
+Negativos: Sensible a outliers. Puede ser difícil encontrar el número de clústeres óptimo y elegir
+la métrica óptima para la clusterización (nosotros escogimos manhattan, pero no podemos asegurar
+que sea la mejor opción).
+
+
+**En el caso de la clusterización, ¿podéis afirmar con certeza que los clústeres generados son**
+l**os mejores posibles? Razonad vuestra respuesta.**
+
+En el caso del método k-Means seleccionamos el número de clusters basándonos en la
+regla del codo del gráfico "clusters_plot". Podemos observar que después de 4 clusters
+la pendiente disminuye, por lo que tener en cuenta más clusters a partir de 4 puede no 
+darnos información importante. Si tuvieramos que elegir otro número de clusters sería 6, ya que
+también se observa otra disminución de la pendiente tras ese número (en cambio, en el cluster 5 no).
+No obstante, no creemos que valga la pena agregar dos clusters más por el poco extra de información
+que puedan aportar. En resumen, creemos que en este caso los 4 clusters generados sí son los mejores.
+
+En cambio, para la clusterización con DIANA, hemos elegido el número de clusters basándonos en el
+dendograma en sí. En este caso, no tenemos tan claro que los clusters sean los mejores posibles. 
+Por un lado se ven muchas diferencias intra-cluster, y por otro hay un cluster (lila) que realmente tiene
+muy poca representación. Jugando con la k llegamos a ver que visualmente el dendograma quedaba más bonito
+si generabamos 12 clústers. No obstante, nos parecía un número demasiado elevado, por lo que decidimos
+dejarlo en 5 por ser el número de tipo de tumores. En resumen, en este caso no podemos afirmar
+que sean los mejores clústeres.
+
 
 ### Pregunta 3. Métodos supervisados
-#### ¿Cuál es el motivo por el cual habéis seleccionado ambas técnicas de aprendizaje supervisado? 
-¿Cuál ha dado mejores resultados a la hora de clasificar las muestras? Razonad vuestra respuesta.
 
-#### ¿Habéis considerado oportuno implementar algún método de reducción de dimensionalidad 
-para procesar los datos antes de implementarlos en dichas técnicas? ¿Por qué?
+**¿Cuál es el motivo por el cual habéis seleccionado ambas técnicas de aprendizaje supervisado?**
+**¿Cuál ha dado mejores resultados a la hora de clasificar las muestras? Razonad vuestra respuesta**
 
-#### ¿Qué aspectos positivos y negativos tienen cada una de las técnicas que habéis escogido?
+Decidimos empezar con kNN por ser un método simple. No obstante, al ver sus resultados casi perfectos
+decidimos usar un método más complejo (SVM radial) y después un método ensemble (Random Forest) para asegurarnos
+de que no estuviera ocurriendo over-fitting en nuestro modelo.
 
-### Pregunta 4. De estas cuatro opciones, ¿qué tipo de arquitectura de deep learning sería 
-la más adecuada para procesar datos de expresión génica? Razonad vuestra respuesta.
-a) Red de perceptrones (multiperceptron layers).
-b) Redes convolucionales.
-c) Redes recurrentes.
-d) Redes de grafos.
+De los tres métodos usados, los que han dado mejores resultados han sido el K-Nearest Neightbors y el
+Random Forest (clasificaron bien / mal el mismo número de pacientes, y las distintas métricas fueron
+idénticas).
+Como ya mencionamos en medio del código, ambos métodos sólo clasificaron mal 1 paciente (un CFB
+que realmente era AGH) por lo que las diferentes métricas evaluadas por clase (precisión, sensibilidad,
+especificidad) eran perfectas para el resto de clases, mientras que para AGH y CFG eran algo
+menores (aunque aún así casi perfectas). Decidimos hacer una tabla para comparar el score F1 de cada
+modelo y llegamos a la misma conclusión: kNN y RF tenían los mejores scores, con valores perfectos para
+CGC, CHC y HPB, y 0.98 y 0.99 para AGH y CFB, respectivamente).
+
+**¿Habéis considerado oportuno implementar algún método de reducción de dimensionalidad**
+**para procesar los datos antes de implementarlos en dichas técnicas? ¿Por qué?**
+
+Como teniamos muchas variables y no estabamos seguros de que todas ellas fuesen a aportar información
+para los métodos, decidimos primero hacer un Elastic Net con el propósito de eliminar aquellas
+no tan necesárias. Elegimos Elastic Net en vez de Ridge o Lasso porque querímos eliminar variables para
+simplificar el análisis, pero sin perder demasiadas.
+Es por ello que decidimos eliminar de los análisis supervisados posteriores todas aquellas variables 
+que tuvieran coeficiente 0 para todas las clases de tumores.
 
 
+**¿Qué aspectos positivos y negativos tienen cada una de las técnicas que habéis escogido?**
+
+*K-Nearest Neightbors (KNN):*
+
+Positivos: Algoritmo simple y con capacidad adaptativa a nuevos datos introducidos. La fase 
+de entrenamiento es rápida porque no se construye un modelo per se.
+
+Negativos: La fase de clasificación puede ser lenta si hay muchos datos. No puede manejar datos
+faltantes o que no tengan un preprocesamiento adecuado, y no trabaja bien con datos desequilibrados. 
+Además la selección del mejor número de vecinos (k) a veces puede ser arbitraria.
 
 
+*Support Vector Machine (SVM) de tipo kernel radial:*
+
+Positivos: Como no se limita a hiperplanos lineales, puede separar grupos no lineales. Es eficaz con
+altas dimensionalidades. Se pueden controlar parámetros para prevenir over-fitting.
+
+Negativos: Se necesita una previa normalización de los datos para mejorar el modelo. Puede
+ser difícil encontrar los parámetros óptimos.
 
 
+*Random Forest (RF):*
 
+Positivos: Al combinar multiples modelos, se reduce la varianza del modelo final y se mejora 
+la precisión y el rendimiento (mejor para evitar over-fitting). Es menos sensible a outliers.
+
+Negativos: Computacionalmente complejo. Como es el resultado de combinar varios modelos, su
+interpretación puede ser compleja. Aunque este tipo de modelos ayuden con el over-fitting, si
+los modelos base que se combinan presentan over-fitting, pueden pasárselo al modelo final.
+
+
+### Pregunta 4. 
+**De estas cuatro opciones, ¿qué tipo de arquitectura de deep learning sería **
+**la más adecuada para procesar datos de expresión génica? Razonad vuestra respuesta.**
+
+**a) Red de perceptrones (multiperceptron layers).**
+
+**b) Redes convolucionales.**
+
+**c) Redes recurrentes.**
+
+**d) Redes de grafos.**
+
+
+Para procesar datos de expresión génica, entendiéndolo como el tipo de datos con los 
+que hemos estado trabajando durante esta actividad, podríamos descartar primero varias 
+arquitecturas:
+
+- Redes convolucionales: se usan con imágenes y vídeos, siendo capaces de reconocer patrones.
+Por lo que, en nuestro caso no sería adecuado.
+
+- Redes recurrentes: se usan para datos secuenciales de tipo texto o audio, por ejemplo para
+autocompletar palabras que ya se han introducido antes. Tampoco aplicaría a nuestro ejemplo.
+
+También estarían las redes de grafos, que podríamos usar si tuvieramos, por ejemplo, grafos
+con la interacción que hay entre distintos genes. Pero como no es con lo que estamos
+trabajando actualmente, no sería la más adecuada.
+
+Por lo tanto, la arquitectura más adecuada en nuestro caso (teniendo una tabla típica de expresión
+de genes por muestra) seria la red de perceptrones, que podría aprender a partir de los valores
+de expresión y predecir clasificaciones (como los tipos de tumor en nuestro caso).
