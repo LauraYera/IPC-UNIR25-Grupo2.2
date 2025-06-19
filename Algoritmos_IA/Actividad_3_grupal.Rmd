@@ -744,10 +744,14 @@ Por lo que, en nuestro caso no sería adecuado.
 - Redes recurrentes: se usan para datos secuenciales de tipo texto o audio, por ejemplo para
 autocompletar palabras que ya se han introducido antes. Tampoco aplicaría a nuestro ejemplo.
 
-También estarían las redes de grafos, que podríamos usar si tuvieramos, por ejemplo, grafos
+- Redes de grafos: podríamos usarlos si tuvieramos, por ejemplo, grafos
 con la interacción que hay entre distintos genes. Pero como no es con lo que estamos
 trabajando actualmente, no sería la más adecuada.
 
-Por lo tanto, la arquitectura más adecuada en nuestro caso (teniendo una tabla típica de expresión
-de genes por muestra) seria la red de perceptrones, que podría aprender a partir de los valores
-de expresión y predecir clasificaciones (como los tipos de tumor en nuestro caso).
+Por lo tanto, la arquitectura más adecuada en nuestro caso (teniendo una tabla típica de 
+expresión de genes por muestra) seria la red de perceptrones, que consistiría en una capa 
+de entrada (con tantas neuronas como genes estamos teniendo en cuenta, o menos si hemos 
+hecho algun tipo de reducción de dimensionalidad previo), varias capas ocultas intermedias,
+y una capa de salida que nos permetiría clasificar a los pacientes a partir de su expresión 
+de genes (por ejemplo, en el caso en el que hemos estado trabajando en esta actividad, la 
+capa de salida tendría 5 categorías, los 5 tipos de tumores).
